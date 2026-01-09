@@ -13,7 +13,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   }
 
   let { page, total, onPageChange }: Props = $props();
-  let inputValue = $state(String(page));
+  let inputValue = $state("1");
 
   $effect(() => {
     inputValue = String(page);
@@ -25,11 +25,6 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
   function next() {
     if (page < total) onPageChange(page + 1);
-  }
-
-  function handleInput(e: Event) {
-    const target = e.target as HTMLInputElement;
-    inputValue = target.value;
   }
 
   function handleBlur() {
@@ -63,8 +58,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     <input
       type="text"
       inputmode="numeric"
-      value={inputValue}
-      oninput={handleInput}
+      bind:value={inputValue}
       onblur={handleBlur}
       onkeydown={handleKeydownInput}
     />
