@@ -16,6 +16,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   let pdf = $state<PDFDocumentProxy | null>(null);
   let page = $state(1);
   let total = $state(0);
+  let scrollRequest = $state<{ page: number; id: number } | null>(null);
+  let scrollRequestId = 0;
   let loading = $state(false);
   let error = $state("");
 
@@ -43,7 +45,12 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     pdf = null;
     page = 1;
     total = 0;
+    scrollRequest = null;
     error = "";
+  }
+
+  function handlePageChange(newPage: number) {
+    scrollRequest = { page: newPage, id: ++scrollRequestId };
   }
 </script>
 
@@ -55,8 +62,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     <button onclick={handleReset}>Try another file</button>
   </div>
 {:else if pdf}
-  <Viewer {pdf} {page} />
-  <Controls {page} {total} onPageChange={(p) => page = p} />
+  <Viewer {pdf} {scrollRequest} onPageChange={(p) => page = p} />
+  <Controls {page} {total} onPageChange={handlePageChange} />
 {:else}
   <div class="dropzone-wrapper">
     <Dropzone onFile={handleFile} />

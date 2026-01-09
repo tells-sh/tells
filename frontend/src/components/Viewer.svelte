@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: 2026 Jason Scheffel <contact@jasonscheffel.com>
 SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 
-<!-- Renders a PDF page to a canvas element. -->
+<!-- Renders all PDF pages in a scrollable view. -->
 
 <script lang="ts">
   import type { PDFDocumentProxy } from "pdfjs-dist";
@@ -11,63 +11,84 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
   interface Props {
     pdf: PDFDocumentProxy;
-    page: number;
+    scrollRequest?: { page: number; id: number } | null;
+    onPageChange?: (page: number) => void;
   }
 
-  let { pdf, page }: Props = $props();
-  let canvas: HTMLCanvasElement;
-  let loading = $state(true);
-  let renderCount = 0;
+  let { pdf, scrollRequest, onPageChange }: Props = $props();
+
+  let canvases = new Map<number, HTMLCanvasElement>();
+  let lastScrollId = 0;
+
+  function registerCanvas(canvas: HTMLCanvasElement, pageNum: number) {
+    canvases.set(pageNum, canvas);
+
+    renderPage(pdf, pageNum, canvas).catch((err) => {
+      console.error(`Failed to render page ${pageNum}:`, err);
+    });
+
+    return {
+      destroy() {
+        canvases.delete(pageNum);
+      }
+    };
+  }
 
   $effect(() => {
-    if (!canvas || !pdf) return;
-
-    const currentRender = ++renderCount;
-    loading = true;
-
-    renderPage(pdf, page, canvas)
-      .then(() => {
-        if (currentRender === renderCount) {
-          loading = false;
-        }
-      })
-      .catch((err) => {
-        if (currentRender === renderCount) {
-          loading = false;
-          console.error("Failed to render page:", err);
+    if (scrollRequest && scrollRequest.id !== lastScrollId) {
+      lastScrollId = scrollRequest.id;
+      // Small delay to ensure canvases are mounted
+      requestAnimationFrame(() => {
+        const canvas = canvases.get(scrollRequest.page);
+        if (canvas) {
+          canvas.scrollIntoView({ behavior: "smooth", block: "start" });
         }
       });
+    }
   });
+
+  function handleScroll() {
+    if (!onPageChange || canvases.size === 0) return;
+
+    const viewportMiddle = window.scrollY + window.innerHeight / 2;
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const canvas = canvases.get(i);
+      if (!canvas) continue;
+
+      const rect = canvas.getBoundingClientRect();
+      const canvasTop = rect.top + window.scrollY;
+      const canvasBottom = canvasTop + rect.height;
+
+      if (viewportMiddle >= canvasTop && viewportMiddle < canvasBottom) {
+        onPageChange(i);
+        return;
+      }
+    }
+  }
 </script>
 
+<svelte:window onscroll={handleScroll} />
+
 <div class="viewer">
-  {#if loading}
-    <div class="loading">Loading...</div>
-  {/if}
-  <canvas bind:this={canvas} class:hidden={loading}></canvas>
+  {#each { length: pdf.numPages } as _, i}
+    <canvas use:registerCanvas={i + 1}></canvas>
+  {/each}
 </div>
 
 <style>
   .viewer {
     display: flex;
-    justify-content: center;
-    align-items: flex-start;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
     padding: 2rem;
-    padding-bottom: 5rem;
-    min-height: calc(100vh - 4rem);
+    padding-bottom: 6rem;
   }
 
   canvas {
     max-width: 100%;
     height: auto;
-  }
-
-  canvas.hidden {
-    visibility: hidden;
-    position: absolute;
-  }
-
-  .loading {
-    color: #555;
+    background: #fff;
   }
 </style>
