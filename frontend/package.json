@@ -1,0 +1,28 @@
+{
+  "name": "tells-frontend",
+  "version": "0.1.0",
+  "description": "Browser-based PDF reader with text-to-speech",
+  "author": "Jason Scheffel <contact@jasonscheffel.com>",
+  "license": "AGPL-3.0-or-later",
+  "homepage": "https://tells.sh",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tells-sh/tells.git"
+  },
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^6.2.4",
+    "svelte": "^5.46.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1"
+  },
+  "dependencies": {
+    "pdfjs-dist": "^5.4.530"
+  }
+}
