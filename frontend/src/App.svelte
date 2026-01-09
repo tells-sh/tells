@@ -58,7 +58,9 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   <Viewer {pdf} {page} />
   <Controls {page} {total} onPageChange={(p) => page = p} />
 {:else}
-  <Dropzone onFile={handleFile} />
+  <div class="dropzone-wrapper">
+    <Dropzone onFile={handleFile} />
+  </div>
 {/if}
 
 <Footer />
@@ -67,6 +69,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   :global(body) {
     margin: 0;
     font-family: system-ui, sans-serif;
+    background: #e8e8e8;
   }
 
   .loading {
@@ -95,5 +98,12 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   button {
     padding: 0.5rem 1rem;
     cursor: pointer;
+  }
+
+  .dropzone-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: calc(100vh - 3rem);
   }
 </style>
