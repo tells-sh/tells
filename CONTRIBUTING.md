@@ -4,9 +4,11 @@
 
 This project is licensed under AGPL-3.0-or-later. By contributing, you agree that your contributions will be licensed under the same terms. Use [SPDX](https://spdx.dev/learn/handling-license-info/) license identifiers in source files.
 
-## DCO Sign-off
+## Signing Requirements
 
 All commits must be signed off to indicate you agree to the [Developer Certificate of Origin](https://developercertificate.org/). Use `git commit -s`.
+
+Commits must also be signed with `git commit -S`.
 
 ## Commit Messages
 
