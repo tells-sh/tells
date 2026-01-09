@@ -74,9 +74,12 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 100vh;
+    width: min(90vw, 500px);
+    aspect-ratio: 8.5 / 11;
     border: 2px dashed #ccc;
+    border-radius: 4px;
     cursor: pointer;
+    background: #fff;
   }
 
   .dropzone.dragover {

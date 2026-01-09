@@ -51,10 +51,10 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   .viewer {
     display: flex;
     justify-content: center;
-    align-items: center;
-    padding: 1rem;
-    padding-bottom: 4rem;
-    min-height: 50vh;
+    align-items: flex-start;
+    padding: 2rem;
+    padding-bottom: 5rem;
+    min-height: calc(100vh - 4rem);
   }
 
   canvas {
