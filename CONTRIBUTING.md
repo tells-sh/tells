@@ -1,0 +1,17 @@
+# Contributing
+
+## License
+
+This project is licensed under AGPL-3.0-or-later. By contributing, you agree that your contributions will be licensed under the same terms. Use [SPDX](https://spdx.dev/learn/handling-license-info/) license identifiers in source files.
+
+## DCO Sign-off
+
+All commits must be signed off to indicate you agree to the [Developer Certificate of Origin](https://developercertificate.org/). Use `git commit -s`.
+
+## Commit Messages
+
+Use [Conventional Commits](https://www.conventionalcommits.org/) format.
+
+- Use imperative mood ("add feature" not "added feature")
+- Subject line max 50 characters, lowercase after type
+- Body wrapped at 74 characters
