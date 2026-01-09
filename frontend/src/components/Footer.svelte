@@ -5,7 +5,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 <footer>
   <span>Copyright (C) 2026 <a href="https://github.com/tells-sh/tells/graphs/contributors">Tells Contributors</a></span>
-  <a href="https://github.com/tells-sh/tells">Source</a>
+  <a href="https://github.com/tells-sh/tells">Source code</a>
   <span>AGPL-3.0-or-later</span>
 </footer>
 
