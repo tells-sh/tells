@@ -3,15 +3,16 @@ SPDX-FileCopyrightText: 2026 Jason Scheffel <contact@jasonscheffel.com>
 SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 
-<!-- Input component with tabs for PDF upload or text paste. -->
+<!-- Input component with tabs for PDF upload or text TTS. -->
 
 <script lang="ts">
+  import TextViewer from "./TextViewer.svelte";
+
   interface Props {
     onFile: (file: File) => void;
-    onText: (text: string) => void;
   }
 
-  let { onFile, onText }: Props = $props();
+  let { onFile }: Props = $props();
 
   type Tab = "pdf" | "text";
   let activeTab = $state<Tab>("pdf");
@@ -19,7 +20,6 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   let dragover = $state(false);
   let error = $state("");
   let input = $state<HTMLInputElement | null>(null);
-  let textContent = $state("");
 
   function isPdf(file: File): boolean {
     if (file.type === "application/pdf") return true;
@@ -49,16 +49,6 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     const target = e.target as HTMLInputElement;
     handleFile(target.files?.[0]);
   }
-
-  function handleTextSubmit() {
-    const trimmed = textContent.trim();
-    if (!trimmed) {
-      error = "Please enter some text";
-      return;
-    }
-    error = "";
-    onText(trimmed);
-  }
 </script>
 
 <div class="container">
@@ -79,59 +69,51 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     </button>
   </div>
 
-  {#if activeTab === "pdf"}
-    <div
-      class="dropzone"
-      class:dragover
-      role="button"
-      tabindex="0"
-      ondragover={(e) => { e.preventDefault(); dragover = true; }}
-      ondragleave={() => dragover = false}
-      ondrop={handleDrop}
-      onclick={() => input?.click()}
-      onkeydown={(e) => { if (e.key === "Enter") input?.click(); }}
-    >
-      <p>Drop a PDF here or click to select</p>
-      {#if error}
-        <p class="error">{error}</p>
-      {/if}
-      <input
-        bind:this={input}
-        type="file"
-        accept="application/pdf,.pdf"
-        oninput={handleInput}
-      />
-    </div>
-  {:else}
-    <div class="text-input">
-      <textarea
-        bind:value={textContent}
-        placeholder="Paste or type your text here..."
-      ></textarea>
-      {#if error}
-        <p class="error">{error}</p>
-      {/if}
-      <button class="submit" onclick={handleTextSubmit}>Submit</button>
-    </div>
-  {/if}
+  <div class="content">
+    {#if activeTab === "pdf"}
+      <div
+        class="dropzone"
+        class:dragover
+        role="button"
+        tabindex="0"
+        ondragover={(e) => { e.preventDefault(); dragover = true; }}
+        ondragleave={() => dragover = false}
+        ondrop={handleDrop}
+        onclick={() => input?.click()}
+        onkeydown={(e) => { if (e.key === "Enter") input?.click(); }}
+      >
+        <p>Drop a PDF here or click to select</p>
+        {#if error}
+          <p class="error">{error}</p>
+        {/if}
+        <input
+          bind:this={input}
+          type="file"
+          accept="application/pdf,.pdf"
+          oninput={handleInput}
+        />
+      </div>
+    {:else}
+      <TextViewer />
+    {/if}
+  </div>
 </div>
 
 <style>
   .container {
     display: flex;
     flex-direction: column;
-    width: min(90vw, 500px);
+    width: min(90vw, 600px);
   }
 
   .tabs {
     display: flex;
-    gap: 0;
   }
 
   .tab {
     flex: 1;
     padding: 0.75rem 1rem;
-    border: 2px solid #ccc;
+    border: 1px solid #ccc;
     border-bottom: none;
     background: #f5f5f5;
     cursor: pointer;
@@ -151,27 +133,33 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   .tab.active {
     background: #fff;
     color: #000;
-    border-bottom: 2px solid #fff;
-    margin-bottom: -2px;
+    border-bottom: 1px solid #fff;
+    margin-bottom: -1px;
     position: relative;
     z-index: 1;
   }
 
+  .content {
+    border: 1px solid #ccc;
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    background: #fff;
+    min-height: 400px;
+    display: flex;
+    flex-direction: column;
+  }
+
   .dropzone {
+    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    aspect-ratio: 8.5 / 11;
-    border: 2px solid #ccc;
-    border-top: none;
-    border-radius: 0 0 4px 4px;
     cursor: pointer;
-    background: #fff;
+    min-height: 400px;
   }
 
   .dropzone.dragover {
-    border-color: #000;
     background: #f5f5f5;
   }
 
@@ -188,48 +176,5 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   .error {
     color: #c00;
     font-size: 1rem;
-  }
-
-  .text-input {
-    display: flex;
-    flex-direction: column;
-    aspect-ratio: 8.5 / 11;
-    border: 2px solid #ccc;
-    border-top: none;
-    border-radius: 0 0 4px 4px;
-    background: #fff;
-    padding: 1rem;
-    box-sizing: border-box;
-  }
-
-  textarea {
-    flex: 1;
-    resize: none;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    padding: 0.75rem;
-    font-family: inherit;
-    font-size: 1rem;
-    line-height: 1.5;
-  }
-
-  textarea:focus {
-    outline: none;
-    border-color: #888;
-  }
-
-  .submit {
-    margin-top: 1rem;
-    padding: 0.75rem 1rem;
-    background: #333;
-    color: #fff;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 1rem;
-  }
-
-  .submit:hover {
-    background: #444;
   }
 </style>
