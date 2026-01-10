@@ -3,42 +3,118 @@ SPDX-FileCopyrightText: 2026 Jason Scheffel <contact@jasonscheffel.com>
 SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 
-<!-- Text viewer with sentence highlighting and TTS. -->
+<!-- Editable text area with sentence highlighting and TTS. -->
 
 <script lang="ts">
   import { splitSentences } from "../lib/text";
 
-  interface Props {
-    text: string;
-    onReset?: () => void;
-  }
-
-  let { text, onReset }: Props = $props();
-
-  let sentences = $derived(splitSentences(text));
+  let text = $state("");
+  let sentences = $state<string[]>([]);
   let hoveredIndex = $state<number | null>(null);
   let activeIndex = $state<number | null>(null);
   let isPaused = $state(false);
-  let sentenceElements: HTMLSpanElement[] = [];
+  let isEditing = $state(false);
+  let editorEl: HTMLDivElement;
 
-  // Counter to invalidate old utterance callbacks after cancel
   let utteranceId = 0;
+
+  function updateSentences() {
+    sentences = splitSentences(text);
+  }
+
+  function syncText() {
+    text = editorEl.innerText;
+    updateSentences();
+  }
+
+  function renderSentences() {
+    if (!editorEl) return;
+
+    if (sentences.length === 0) {
+      editorEl.innerHTML = "";
+      return;
+    }
+
+    editorEl.innerHTML = sentences
+      .map(
+        (s, i) =>
+          `<span class="sentence${activeIndex === i ? " active" : ""}${hoveredIndex === i && activeIndex !== i ? " hovered" : ""}" data-index="${i}">${escapeHtml(s)}</span> `
+      )
+      .join("");
+  }
+
+  function escapeHtml(str: string): string {
+    return str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function handleFocus() {
+    isEditing = true;
+    stop();
+  }
+
+  function exitEditMode() {
+    isEditing = false;
+    syncText();
+    renderSentences();
+  }
+
+  function handleMouseDown(e: MouseEvent) {
+    if (isEditing) return;
+
+    const target = e.target as HTMLElement;
+    if (target.classList.contains("sentence")) {
+      e.preventDefault(); // Prevent focus
+      const index = parseInt(target.dataset.index!, 10);
+      startFrom(index);
+    }
+  }
+
+  function enterEditMode() {
+    editorEl.focus();
+  }
+
+  function handleMouseOver(e: MouseEvent) {
+    if (isEditing) return;
+
+    const target = e.target as HTMLElement;
+    if (target.classList.contains("sentence")) {
+      const index = parseInt(target.dataset.index!, 10);
+      if (hoveredIndex !== index) {
+        hoveredIndex = index;
+        renderSentences();
+      }
+    }
+  }
+
+  function handleMouseOut(e: MouseEvent) {
+    if (isEditing) return;
+
+    const target = e.target as HTMLElement;
+    if (target.classList.contains("sentence")) {
+      hoveredIndex = null;
+      renderSentences();
+    }
+  }
 
   function speak(index: number) {
     if (index < 0 || index >= sentences.length) {
       activeIndex = null;
       isPaused = false;
+      renderSentences();
       return;
     }
 
     const thisUtteranceId = ++utteranceId;
     activeIndex = index;
     isPaused = false;
+    renderSentences();
 
     const utterance = new SpeechSynthesisUtterance(sentences[index]);
 
     utterance.onend = () => {
-      // Only auto-advance if this utterance is still valid
       if (thisUtteranceId === utteranceId && activeIndex === index) {
         speak(index + 1);
       }
@@ -51,12 +127,6 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     };
 
     speechSynthesis.speak(utterance);
-
-    // Scroll active sentence into view
-    const el = sentenceElements[index];
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
   }
 
   function startFrom(index: number) {
@@ -65,7 +135,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   }
 
   function pause() {
-    utteranceId++; // Invalidate current utterance's onend
+    utteranceId++;
     speechSynthesis.cancel();
     isPaused = true;
   }
@@ -73,7 +143,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   function resume() {
     isPaused = false;
     if (activeIndex !== null) {
-      speak(activeIndex); // Restart from current sentence
+      speak(activeIndex);
     }
   }
 
@@ -82,96 +152,121 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     speechSynthesis.cancel();
     activeIndex = null;
     isPaused = false;
-  }
-
-  function handleStartOver() {
-    stop();
-    onReset?.();
+    renderSentences();
   }
 </script>
 
-<div class="text-viewer">
-  <div class="content">
-    {#each sentences as sentence, i}
-      <span
-        bind:this={sentenceElements[i]}
-        class="sentence"
-        class:hovered={hoveredIndex === i && activeIndex !== i}
-        class:active={activeIndex === i}
-        role="button"
-        tabindex="0"
-        onmouseenter={() => (hoveredIndex = i)}
-        onmouseleave={() => (hoveredIndex = null)}
-        onclick={() => startFrom(i)}
-        onkeydown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            startFrom(i);
-          }
-        }}
-      >{sentence}</span>{" "}
-    {/each}
+<div class="container">
+  <div class="toolbar">
+    {#if !isEditing}
+      {#if activeIndex !== null}
+        {#if isPaused}
+          <button class="toolbar-btn" onclick={resume}>Resume</button>
+        {:else}
+          <button class="toolbar-btn" onclick={pause}>Pause</button>
+        {/if}
+        <button class="toolbar-btn" onclick={stop}>Stop</button>
+      {:else}
+        <button class="toolbar-btn" onclick={enterEditMode}>Edit</button>
+      {/if}
+    {/if}
+  </div>
+
+  <div class="editor-wrapper">
+    <div
+      bind:this={editorEl}
+      class="editor"
+      class:editing={isEditing}
+      contenteditable="true"
+      role="textbox"
+      aria-multiline="true"
+      onfocus={handleFocus}
+      onblur={exitEditMode}
+      onmousedown={handleMouseDown}
+      onmouseover={handleMouseOver}
+      onmouseout={handleMouseOut}
+    ></div>
+
+    {#if sentences.length === 0 && !isEditing}
+      <div class="placeholder">Click to type or paste text...</div>
+    {/if}
   </div>
 </div>
 
-<div class="controls">
-  {#if activeIndex !== null}
-    {#if isPaused}
-      <button onclick={resume}>Resume</button>
-    {:else}
-      <button onclick={pause}>Pause</button>
-    {/if}
-    <button onclick={stop}>Stop</button>
-  {/if}
-  {#if onReset}
-    <button onclick={handleStartOver}>Start over</button>
-  {/if}
-</div>
 
 <style>
-  .text-viewer {
-    max-width: min(90vw, 800px);
-    margin: 2rem auto;
-    padding: 2rem;
-    padding-bottom: 6rem;
-    background: #fff;
-    border-radius: 4px;
-    min-height: calc(100vh - 10rem);
+  .container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
   }
 
-  .content {
+  .toolbar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border-bottom: 1px solid #eee;
+    min-height: 2rem;
+  }
+
+  .toolbar-btn {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.875rem;
+    background: #f5f5f5;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+
+  .toolbar-btn:hover {
+    background: #e8e8e8;
+  }
+
+  .editor-wrapper {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .editor {
+    flex: 1;
+    min-height: 300px;
+    padding: 1rem;
+    font-family: inherit;
     font-size: 1rem;
     line-height: 1.6;
+    background: #fff;
+    border: none;
+    outline: none;
+    overflow-y: auto;
+    cursor: text;
   }
 
-  .sentence {
-    cursor: pointer;
+  .placeholder {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    color: #999;
+    pointer-events: none;
+  }
+
+  .editor :global(.sentence) {
     border-radius: 2px;
     transition: background-color 0.1s;
   }
 
-  .sentence.hovered {
+  .editor:not(.editing) :global(.sentence) {
+    cursor: pointer;
+  }
+
+  .editor:not(.editing) :global(.sentence.hovered) {
     background-color: #e0e0e0;
   }
 
-  .sentence.active {
+  .editor :global(.sentence.active) {
     background-color: #ffd54f;
   }
 
-  .controls {
-    position: fixed;
-    bottom: 2rem;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 0.5rem;
-    background: #fff;
-    padding: 0.5rem 1rem;
-    border: 1px solid #ccc;
-  }
-
-  .controls button {
-    padding: 0.5rem 1rem;
-    cursor: pointer;
-  }
 </style>

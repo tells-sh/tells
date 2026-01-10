@@ -10,12 +10,10 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   import { loadPdf, PdfLoadError } from "./lib/pdf";
   import Dropzone from "./components/Dropzone.svelte";
   import Viewer from "./components/Viewer.svelte";
-  import TextViewer from "./components/TextViewer.svelte";
   import Controls from "./components/Controls.svelte";
   import Footer from "./components/Footer.svelte";
 
   let pdf = $state<PDFDocumentProxy | null>(null);
-  let text = $state<string | null>(null);
   let page = $state(1);
   let total = $state(0);
   let scrollRequest = $state<{ page: number; id: number } | null>(null);
@@ -43,13 +41,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     }
   }
 
-  function handleText(content: string) {
-    text = content;
-  }
-
   function handleReset() {
     pdf = null;
-    text = null;
     page = 1;
     total = 0;
     scrollRequest = null;
@@ -71,11 +64,9 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 {:else if pdf}
   <Viewer {pdf} {scrollRequest} onPageChange={(p) => page = p} />
   <Controls {page} {total} onPageChange={handlePageChange} />
-{:else if text}
-  <TextViewer {text} onReset={handleReset} />
 {:else}
   <div class="dropzone-wrapper">
-    <Dropzone onFile={handleFile} onText={handleText} />
+    <Dropzone onFile={handleFile} />
   </div>
 {/if}
 
@@ -122,5 +113,4 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     align-items: center;
     min-height: calc(100vh - 3rem);
   }
-
 </style>
