@@ -72,10 +72,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   <Viewer {pdf} {scrollRequest} onPageChange={(p) => page = p} />
   <Controls {page} {total} onPageChange={handlePageChange} />
 {:else if text}
-  <TextViewer {text} />
-  <div class="reset-bar">
-    <button onclick={handleReset}>Start over</button>
-  </div>
+  <TextViewer {text} onReset={handleReset} />
 {:else}
   <div class="dropzone-wrapper">
     <Dropzone onFile={handleFile} onText={handleText} />
@@ -126,13 +123,4 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     min-height: calc(100vh - 3rem);
   }
 
-  .reset-bar {
-    position: fixed;
-    bottom: 2rem;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #fff;
-    padding: 0.5rem 1rem;
-    border: 1px solid #ccc;
-  }
 </style>
