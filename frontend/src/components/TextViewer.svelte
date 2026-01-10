@@ -6,39 +6,55 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 <!-- Editable text area with sentence highlighting and TTS. -->
 
 <script lang="ts">
-  import { splitSentences } from "../lib/text";
+  import { parseText, type Paragraph } from "../lib/text";
+
+  interface Position {
+    para: number;
+    sent: number;
+  }
 
   let text = $state("");
-  let sentences = $state<string[]>([]);
-  let hoveredIndex = $state<number | null>(null);
-  let activeIndex = $state<number | null>(null);
+  let paragraphs = $state<Paragraph[]>([]);
+  let hoveredPos = $state<Position | null>(null);
+  let activePos = $state<Position | null>(null);
   let isPaused = $state(false);
   let isEditing = $state(false);
   let editorEl: HTMLDivElement;
 
   let utteranceId = 0;
 
-  function updateSentences() {
-    sentences = splitSentences(text);
+  function updateParagraphs() {
+    paragraphs = parseText(text);
   }
 
   function syncText() {
     text = editorEl.innerText;
-    updateSentences();
+    updateParagraphs();
   }
 
-  function renderSentences() {
+  function posEq(a: Position | null, b: Position | null): boolean {
+    if (!a || !b) return false;
+    return a.para === b.para && a.sent === b.sent;
+  }
+
+  function renderContent() {
     if (!editorEl) return;
 
-    if (sentences.length === 0) {
+    if (paragraphs.length === 0) {
       editorEl.innerHTML = "";
       return;
     }
 
-    editorEl.innerHTML = sentences
+    editorEl.innerHTML = paragraphs
       .map(
-        (s, i) =>
-          `<span class="sentence${activeIndex === i ? " active" : ""}${hoveredIndex === i && activeIndex !== i ? " hovered" : ""}" data-index="${i}">${escapeHtml(s)}</span> `
+        (p, pi) =>
+          `<p>${p.sentences
+            .map((s, si) => {
+              const isActive = posEq(activePos, { para: pi, sent: si });
+              const isHovered = posEq(hoveredPos, { para: pi, sent: si }) && !isActive;
+              return `<span class="sentence${isActive ? " active" : ""}${isHovered ? " hovered" : ""}" data-para="${pi}" data-sent="${si}">${escapeHtml(s)}</span>`;
+            })
+            .join(" ")}</p>`
       )
       .join("");
   }
@@ -58,17 +74,23 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   function exitEditMode() {
     isEditing = false;
     syncText();
-    renderSentences();
+    renderContent();
+  }
+
+  function getPositionFromElement(el: HTMLElement): Position | null {
+    if (!el.classList.contains("sentence")) return null;
+    const para = parseInt(el.dataset.para!, 10);
+    const sent = parseInt(el.dataset.sent!, 10);
+    return { para, sent };
   }
 
   function handleMouseDown(e: MouseEvent) {
     if (isEditing) return;
 
-    const target = e.target as HTMLElement;
-    if (target.classList.contains("sentence")) {
-      e.preventDefault(); // Prevent focus
-      const index = parseInt(target.dataset.index!, 10);
-      startFrom(index);
+    const pos = getPositionFromElement(e.target as HTMLElement);
+    if (pos) {
+      e.preventDefault();
+      startFrom(pos);
     }
   }
 
@@ -79,13 +101,10 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   function handleMouseOver(e: MouseEvent) {
     if (isEditing) return;
 
-    const target = e.target as HTMLElement;
-    if (target.classList.contains("sentence")) {
-      const index = parseInt(target.dataset.index!, 10);
-      if (hoveredIndex !== index) {
-        hoveredIndex = index;
-        renderSentences();
-      }
+    const pos = getPositionFromElement(e.target as HTMLElement);
+    if (pos && !posEq(hoveredPos, pos)) {
+      hoveredPos = pos;
+      renderContent();
     }
   }
 
@@ -94,29 +113,47 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
     const target = e.target as HTMLElement;
     if (target.classList.contains("sentence")) {
-      hoveredIndex = null;
-      renderSentences();
+      hoveredPos = null;
+      renderContent();
     }
   }
 
-  function speak(index: number) {
-    if (index < 0 || index >= sentences.length) {
-      activeIndex = null;
+  function nextPosition(pos: Position): Position | null {
+    const para = paragraphs[pos.para];
+    if (pos.sent + 1 < para.sentences.length) {
+      return { para: pos.para, sent: pos.sent + 1 };
+    }
+    if (pos.para + 1 < paragraphs.length) {
+      return { para: pos.para + 1, sent: 0 };
+    }
+    return null;
+  }
+
+  function speak(pos: Position) {
+    const para = paragraphs[pos.para];
+    if (!para || pos.sent >= para.sentences.length) {
+      activePos = null;
       isPaused = false;
-      renderSentences();
+      renderContent();
       return;
     }
 
     const thisUtteranceId = ++utteranceId;
-    activeIndex = index;
+    activePos = pos;
     isPaused = false;
-    renderSentences();
+    renderContent();
 
-    const utterance = new SpeechSynthesisUtterance(sentences[index]);
+    const utterance = new SpeechSynthesisUtterance(para.sentences[pos.sent]);
 
     utterance.onend = () => {
-      if (thisUtteranceId === utteranceId && activeIndex === index) {
-        speak(index + 1);
+      if (thisUtteranceId === utteranceId && posEq(activePos, pos)) {
+        const next = nextPosition(pos);
+        if (next) {
+          speak(next);
+        } else {
+          activePos = null;
+          renderContent();
+        }
       }
     };
 
@@ -129,9 +166,9 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     speechSynthesis.speak(utterance);
   }
 
-  function startFrom(index: number) {
+  function startFrom(pos: Position) {
     speechSynthesis.cancel();
-    speak(index);
+    speak(pos);
   }
 
   function pause() {
@@ -142,24 +179,24 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
   function resume() {
     isPaused = false;
-    if (activeIndex !== null) {
-      speak(activeIndex);
+    if (activePos) {
+      speak(activePos);
     }
   }
 
   function stop() {
     utteranceId++;
     speechSynthesis.cancel();
-    activeIndex = null;
+    activePos = null;
     isPaused = false;
-    renderSentences();
+    renderContent();
   }
 </script>
 
 <div class="container">
   <div class="toolbar">
     {#if !isEditing}
-      {#if activeIndex !== null}
+      {#if activePos !== null}
         {#if isPaused}
           <button class="toolbar-btn" onclick={resume}>Resume</button>
         {:else}
@@ -187,7 +224,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
       onmouseout={handleMouseOut}
     ></div>
 
-    {#if sentences.length === 0 && !isEditing}
+    {#if paragraphs.length === 0 && !isEditing}
       <div class="placeholder">Click to type or paste text...</div>
     {/if}
   </div>
@@ -242,6 +279,14 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     outline: none;
     overflow-y: auto;
     cursor: text;
+  }
+
+  .editor :global(p) {
+    margin: 0 0 1em 0;
+  }
+
+  .editor :global(p:last-child) {
+    margin-bottom: 0;
   }
 
   .placeholder {
