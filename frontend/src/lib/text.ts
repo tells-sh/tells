@@ -5,6 +5,8 @@ export interface Paragraph {
   sentences: string[];
 }
 
+const segmenter = new Intl.Segmenter("en", { granularity: "sentence" });
+
 /**
  * Parse text into paragraphs and sentences.
  * Paragraphs split on double newlines. Single newlines become spaces.
@@ -21,28 +23,7 @@ export function parseText(text: string): Paragraph[] {
     .filter((p): p is Paragraph => p !== null && p.sentences.length > 0);
 }
 
-/**
- * Split text into sentences. Splits on . ! ? followed by whitespace or end of string.
- */
 function splitSentences(text: string): string[] {
-  const sentences: string[] = [];
-  const regex = /[^.!?]*[.!?]+/g;
-  let match: RegExpExecArray | null;
-  let lastIndex = 0;
-
-  while ((match = regex.exec(text)) !== null) {
-    const trimmed = match[0].trim();
-    if (trimmed) {
-      sentences.push(trimmed);
-    }
-    lastIndex = match.index + match[0].length;
-  }
-
-  // Handle trailing text without sentence-ending punctuation
-  const remaining = text.slice(lastIndex).trim();
-  if (remaining) {
-    sentences.push(remaining);
-  }
-
-  return sentences;
+  const segments = segmenter.segment(text);
+  return [...segments].map((s) => s.segment.trim()).filter((s) => s.length > 0);
 }
