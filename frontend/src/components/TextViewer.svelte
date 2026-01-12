@@ -8,6 +8,12 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 <script lang="ts">
   import { parseText, type Paragraph } from "../lib/text";
 
+  $effect(() => {
+    return () => {
+      speechSynthesis.cancel();
+    };
+  });
+
   interface Position {
     para: number;
     sent: number;
