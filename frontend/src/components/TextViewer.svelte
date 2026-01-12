@@ -21,13 +21,59 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
   let text = $state("");
   let paragraphs = $state<Paragraph[]>([]);
-  let hoveredPos = $state<Position | null>(null);
-  let activePos = $state<Position | null>(null);
+  let hoveredBatch = $state<Position[]>([]);
+  let activeBatch = $state<Position[]>([]);
   let isPaused = $state(false);
   let isEditing = $state(false);
   let editorEl: HTMLDivElement;
 
+  let batchSize = $state(1);
+  let forwardOnly = $state(true);
+
   let utteranceId = 0;
+
+  function posInBatch(pos: Position, batch: Position[]): boolean {
+    return batch.some((p) => p.para === pos.para && p.sent === pos.sent);
+  }
+
+  function getBatch(pos: Position): Position[] {
+    const allPositions: Position[] = [];
+    paragraphs.forEach((p, pi) => {
+      p.sentences.forEach((_, si) => {
+        allPositions.push({ para: pi, sent: si });
+      });
+    });
+
+    const clickedIdx = allPositions.findIndex(
+      (p) => p.para === pos.para && p.sent === pos.sent
+    );
+    if (clickedIdx === -1) return [pos];
+
+    const batch: Position[] = [];
+
+    if (forwardOnly) {
+      for (let i = 0; i < batchSize && clickedIdx + i < allPositions.length; i++) {
+        batch.push(allPositions[clickedIdx + i]);
+      }
+    } else {
+      const before = Math.floor((batchSize - 1) / 2);
+      const after = batchSize - 1 - before;
+      const startIdx = Math.max(0, clickedIdx - before);
+      const endIdx = Math.min(allPositions.length - 1, clickedIdx + after);
+
+      for (let i = startIdx; i <= endIdx; i++) {
+        batch.push(allPositions[i]);
+      }
+    }
+
+    return batch;
+  }
+
+  function getBatchText(batch: Position[]): string {
+    return batch
+      .map((pos) => paragraphs[pos.para]?.sentences[pos.sent] ?? "")
+      .join(" ");
+  }
 
   function updateParagraphs() {
     paragraphs = parseText(text);
@@ -56,8 +102,9 @@ SPDX-License-Identifier: AGPL-3.0-or-later
         (p, pi) =>
           `<p>${p.sentences
             .map((s, si) => {
-              const isActive = posEq(activePos, { para: pi, sent: si });
-              const isHovered = posEq(hoveredPos, { para: pi, sent: si }) && !isActive;
+              const pos = { para: pi, sent: si };
+              const isActive = posInBatch(pos, activeBatch);
+              const isHovered = posInBatch(pos, hoveredBatch) && !isActive;
               return `<span class="sentence${isActive ? " active" : ""}${isHovered ? " hovered" : ""}" data-para="${pi}" data-sent="${si}">${escapeHtml(s)}</span>`;
             })
             .join(" ")}</p>`
@@ -108,9 +155,12 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     if (isEditing) return;
 
     const pos = getPositionFromElement(e.target as HTMLElement);
-    if (pos && !posEq(hoveredPos, pos)) {
-      hoveredPos = pos;
-      renderContent();
+    if (pos) {
+      const newBatch = getBatch(pos);
+      if (newBatch.length !== hoveredBatch.length || !newBatch.every((p, i) => posEq(p, hoveredBatch[i]))) {
+        hoveredBatch = newBatch;
+        renderContent();
+      }
     }
   }
 
@@ -119,47 +169,28 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
     const target = e.target as HTMLElement;
     if (target.classList.contains("sentence")) {
-      hoveredPos = null;
+      hoveredBatch = [];
       renderContent();
     }
   }
 
-  function nextPosition(pos: Position): Position | null {
-    const para = paragraphs[pos.para];
-    if (pos.sent + 1 < para.sentences.length) {
-      return { para: pos.para, sent: pos.sent + 1 };
-    }
-    if (pos.para + 1 < paragraphs.length) {
-      return { para: pos.para + 1, sent: 0 };
-    }
-    return null;
-  }
-
-  function speak(pos: Position) {
-    const para = paragraphs[pos.para];
-    if (!para || pos.sent >= para.sentences.length) {
-      activePos = null;
+  function speakBatch() {
+    if (activeBatch.length === 0) {
       isPaused = false;
       renderContent();
       return;
     }
 
     const thisUtteranceId = ++utteranceId;
-    activePos = pos;
     isPaused = false;
     renderContent();
 
-    const utterance = new SpeechSynthesisUtterance(para.sentences[pos.sent]);
+    const utterance = new SpeechSynthesisUtterance(getBatchText(activeBatch));
 
     utterance.onend = () => {
-      if (thisUtteranceId === utteranceId && posEq(activePos, pos)) {
-        const next = nextPosition(pos);
-        if (next) {
-          speak(next);
-        } else {
-          activePos = null;
-          renderContent();
-        }
+      if (thisUtteranceId === utteranceId) {
+        activeBatch = [];
+        renderContent();
       }
     };
 
@@ -174,7 +205,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
   function startFrom(pos: Position) {
     speechSynthesis.cancel();
-    speak(pos);
+    activeBatch = getBatch(pos);
+    speakBatch();
   }
 
   function pause() {
@@ -185,15 +217,15 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
   function resume() {
     isPaused = false;
-    if (activePos) {
-      speak(activePos);
+    if (activeBatch.length > 0) {
+      speakBatch();
     }
   }
 
   function stop() {
     utteranceId++;
     speechSynthesis.cancel();
-    activePos = null;
+    activeBatch = [];
     isPaused = false;
     renderContent();
   }
@@ -220,7 +252,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
   <div class="controls">
     {#if !isEditing}
-      {#if activePos !== null}
+      {#if activeBatch.length > 0}
         {#if isPaused}
           <button class="control-btn" onclick={resume}>Resume</button>
         {:else}
@@ -230,6 +262,23 @@ SPDX-License-Identifier: AGPL-3.0-or-later
       {:else}
         <button class="control-btn" onclick={enterEditMode}>Edit</button>
       {/if}
+
+      <div class="batch-controls">
+        <label class="batch-label">
+          Batch
+          <input
+            type="number"
+            class="batch-input"
+            min="1"
+            max="20"
+            bind:value={batchSize}
+          />
+        </label>
+        <label class="batch-label">
+          <input type="checkbox" bind:checked={forwardOnly} />
+          Forward
+        </label>
+      </div>
     {/if}
   </div>
 </div>
@@ -316,4 +365,26 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     background-color: #ffd54f;
   }
 
+  .batch-controls {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .batch-label {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+    color: #555;
+  }
+
+  .batch-input {
+    width: 3rem;
+    padding: 0.25rem;
+    font-size: 0.8125rem;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+  }
 </style>
