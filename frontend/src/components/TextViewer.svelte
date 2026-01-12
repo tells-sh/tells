@@ -194,38 +194,36 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 </script>
 
 <div class="container">
-  <div class="toolbar">
+  <div
+    bind:this={editorEl}
+    class="editor"
+    class:editing={isEditing}
+    contenteditable="true"
+    role="textbox"
+    aria-multiline="true"
+    onfocus={handleFocus}
+    onblur={exitEditMode}
+    onmousedown={handleMouseDown}
+    onmouseover={handleMouseOver}
+    onmouseout={handleMouseOut}
+  ></div>
+
+  {#if paragraphs.length === 0 && !isEditing}
+    <div class="placeholder">Click to type or paste text...</div>
+  {/if}
+
+  <div class="controls">
     {#if !isEditing}
       {#if activePos !== null}
         {#if isPaused}
-          <button class="toolbar-btn" onclick={resume}>Resume</button>
+          <button class="control-btn" onclick={resume}>Resume</button>
         {:else}
-          <button class="toolbar-btn" onclick={pause}>Pause</button>
+          <button class="control-btn" onclick={pause}>Pause</button>
         {/if}
-        <button class="toolbar-btn" onclick={stop}>Stop</button>
+        <button class="control-btn" onclick={stop}>Stop</button>
       {:else}
-        <button class="toolbar-btn" onclick={enterEditMode}>Edit</button>
+        <button class="control-btn" onclick={enterEditMode}>Edit</button>
       {/if}
-    {/if}
-  </div>
-
-  <div class="editor-wrapper">
-    <div
-      bind:this={editorEl}
-      class="editor"
-      class:editing={isEditing}
-      contenteditable="true"
-      role="textbox"
-      aria-multiline="true"
-      onfocus={handleFocus}
-      onblur={exitEditMode}
-      onmousedown={handleMouseDown}
-      onmouseover={handleMouseOver}
-      onmouseout={handleMouseOut}
-    ></div>
-
-    {#if paragraphs.length === 0 && !isEditing}
-      <div class="placeholder">Click to type or paste text...</div>
     {/if}
   </div>
 </div>
@@ -233,38 +231,36 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 <style>
   .container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .toolbar {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
-    padding: 0.5rem;
-    border-bottom: 1px solid #eee;
-    min-height: 2rem;
-  }
-
-  .toolbar-btn {
-    padding: 0.25rem 0.75rem;
-    font-size: 0.875rem;
-    background: #f5f5f5;
-    border: 1px solid #ccc;
-    border-radius: 3px;
-    cursor: pointer;
-  }
-
-  .toolbar-btn:hover {
-    background: #e8e8e8;
-  }
-
-  .editor-wrapper {
     position: relative;
     flex: 1;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
+  }
+
+  .controls {
+    position: fixed;
+    top: 50%;
+    left: calc(50% + 320px);
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    z-index: 10;
+  }
+
+  .control-btn {
+    padding: 0.375rem 0.625rem;
+    font-size: 0.8125rem;
+    background: #f5f5f5;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .control-btn:hover {
+    background: #e8e8e8;
   }
 
   .editor {
