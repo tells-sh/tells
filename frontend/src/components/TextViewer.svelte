@@ -18,14 +18,15 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     }
   }
   requestIdleCallback(loadVoices);
-  speechSynthesis.addEventListener("voiceschanged", loadVoices);
 </script>
 
 <script lang="ts">
   import { parseText, type Paragraph } from "../lib/text";
 
   $effect(() => {
+    speechSynthesis.addEventListener("voiceschanged", loadVoices);
     return () => {
+      speechSynthesis.removeEventListener("voiceschanged", loadVoices);
       speechSynthesis.cancel();
     };
   });
@@ -37,6 +38,15 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
   let text = $state("");
   let paragraphs = $state<Paragraph[]>([]);
+  let allPositions = $derived.by(() => {
+    const positions: Position[] = [];
+    paragraphs.forEach((p, pi) => {
+      p.sentences.forEach((_, si) => {
+        positions.push({ para: pi, sent: si });
+      });
+    });
+    return positions;
+  });
   let hoveredBatch = $state<Position[]>([]);
   let activeBatch = $state<Position[]>([]);
   let isPaused = $state(false);
@@ -72,13 +82,6 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   }
 
   function getBatch(pos: Position): Position[] {
-    const allPositions: Position[] = [];
-    paragraphs.forEach((p, pi) => {
-      p.sentences.forEach((_, si) => {
-        allPositions.push({ para: pi, sent: si });
-      });
-    });
-
     const clickedIdx = allPositions.findIndex(
       (p) => p.para === pos.para && p.sent === pos.sent
     );
@@ -275,6 +278,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     class:editing={isEditing}
     contenteditable="true"
     role="textbox"
+    tabindex="0"
     aria-multiline="true"
     onfocus={handleFocus}
     onblur={exitEditMode}
