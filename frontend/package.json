@@ -25,6 +25,7 @@
     "vitest": "^4.0.16"
   },
   "dependencies": {
+    "kokoro-js": "^1.2.1",
     "pdfjs-dist": "^5.4.530"
   }
 }

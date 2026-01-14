@@ -6,10 +6,51 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 <!-- Editable text area with sentence highlighting and TTS. -->
 
 <script lang="ts" module>
+  import type { KokoroState, KokoroDtype, KokoroDevice, KokoroProgress } from "../lib/kokoro";
+
   let voices = $state<SpeechSynthesisVoice[]>([]);
   let selectedVoice = $state<SpeechSynthesisVoice | null>(null);
   let rate = $state(1);
-  let ttsEngine = $state<"web">("web");
+  let ttsEngine = $state<"web" | "kokoro">("web");
+
+  // Kokoro state
+  let kokoroDtype = $state<KokoroDtype>("q8");
+  let kokoroDevice = $state<KokoroDevice>("wasm");
+  let kokoroVoice = $state("af_heart");
+  let kokoroState = $state<KokoroState>("idle");
+  let kokoroProgress = $state<KokoroProgress | null>(null);
+  let kokoroError = $state<string | null>(null);
+
+  const KOKORO_VOICES = [
+    { id: "af_heart", name: "Heart" },
+    { id: "af_alloy", name: "Alloy" },
+    { id: "af_aoede", name: "Aoede" },
+    { id: "af_bella", name: "Bella" },
+    { id: "af_jessica", name: "Jessica" },
+    { id: "af_kore", name: "Kore" },
+    { id: "af_nicole", name: "Nicole" },
+    { id: "af_nova", name: "Nova" },
+    { id: "af_river", name: "River" },
+    { id: "af_sarah", name: "Sarah" },
+    { id: "af_sky", name: "Sky" },
+    { id: "am_adam", name: "Adam" },
+    { id: "am_echo", name: "Echo" },
+    { id: "am_eric", name: "Eric" },
+    { id: "am_fenrir", name: "Fenrir" },
+    { id: "am_liam", name: "Liam" },
+    { id: "am_michael", name: "Michael" },
+    { id: "am_onyx", name: "Onyx" },
+    { id: "am_puck", name: "Puck" },
+    { id: "am_santa", name: "Santa" },
+    { id: "bf_alice", name: "Alice" },
+    { id: "bf_emma", name: "Emma" },
+    { id: "bf_isabella", name: "Isabella" },
+    { id: "bf_lily", name: "Lily" },
+    { id: "bm_daniel", name: "Daniel" },
+    { id: "bm_fable", name: "Fable" },
+    { id: "bm_george", name: "George" },
+    { id: "bm_lewis", name: "Lewis" },
+  ] as const;
 
   function loadVoices() {
     voices = speechSynthesis.getVoices();
@@ -61,7 +102,71 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   let voiceDropdownOpen = $state(false);
   let voiceDropdownMounted = $state(false);
 
+  let audioElement: HTMLAudioElement | null = null;
+  let isGenerating = $state(false);
+
   const userLang = navigator.language.slice(0, 2);
+
+  async function loadKokoroModel() {
+    kokoroState = "loading-package";
+    kokoroError = null;
+    kokoroProgress = null;
+
+    try {
+      const kokoro = await import("../lib/kokoro");
+      kokoroState = "loading-model";
+
+      await kokoro.initialize(kokoroDtype, kokoroDevice, (progress) => {
+        kokoroProgress = { ...progress };
+      });
+
+      kokoroState = "ready";
+      kokoroProgress = null;
+    } catch (err) {
+      kokoroState = "error";
+      kokoroError = err instanceof Error ? err.message : "Failed to load Kokoro";
+    }
+  }
+
+  async function speakWithKokoro(text: string) {
+    if (kokoroState !== "ready") return;
+
+    isGenerating = true;
+
+    try {
+      const kokoro = await import("../lib/kokoro");
+      const audioBlob = await kokoro.generate(text, kokoroVoice);
+
+      if (audioElement) {
+        audioElement.pause();
+        URL.revokeObjectURL(audioElement.src);
+        audioElement = null;
+      }
+
+      const url = URL.createObjectURL(audioBlob);
+      audioElement = new Audio(url);
+      audioElement.playbackRate = rate;
+
+      audioElement.onended = () => {
+        URL.revokeObjectURL(url);
+        activeBatch = [];
+        renderContent();
+      };
+
+      audioElement.onerror = () => {
+        console.error("Audio playback error");
+        URL.revokeObjectURL(url);
+        activeBatch = [];
+        renderContent();
+      };
+
+      await audioElement.play();
+    } catch (err) {
+      console.error("Kokoro generation error:", err);
+    } finally {
+      isGenerating = false;
+    }
+  }
 
   function getFilteredVoices(): SpeechSynthesisVoice[] {
     let filtered = voices;
@@ -219,31 +324,42 @@ SPDX-License-Identifier: AGPL-3.0-or-later
       return;
     }
 
-    const thisUtteranceId = ++utteranceId;
+    const batchText = getBatchText(activeBatch);
     isPaused = false;
     renderContent();
 
-    const utterance = new SpeechSynthesisUtterance(getBatchText(activeBatch));
-    if (selectedVoice) utterance.voice = selectedVoice;
-    utterance.rate = rate;
+    if (ttsEngine === "kokoro") {
+      speakWithKokoro(batchText);
+    } else {
+      const thisUtteranceId = ++utteranceId;
 
-    utterance.onend = () => {
-      if (thisUtteranceId === utteranceId) {
-        activeBatch = [];
-        renderContent();
-      }
-    };
+      const utterance = new SpeechSynthesisUtterance(batchText);
+      if (selectedVoice) utterance.voice = selectedVoice;
+      utterance.rate = rate;
 
-    utterance.onerror = (e) => {
-      if (e.error !== "canceled") {
-        console.error("TTS error:", e.error);
-      }
-    };
+      utterance.onend = () => {
+        if (thisUtteranceId === utteranceId) {
+          activeBatch = [];
+          renderContent();
+        }
+      };
 
-    speechSynthesis.speak(utterance);
+      utterance.onerror = (e) => {
+        if (e.error !== "canceled") {
+          console.error("TTS error:", e.error);
+        }
+      };
+
+      speechSynthesis.speak(utterance);
+    }
   }
 
   function startFrom(pos: Position) {
+    if (audioElement) {
+      audioElement.pause();
+      URL.revokeObjectURL(audioElement.src);
+      audioElement = null;
+    }
     speechSynthesis.cancel();
     activeBatch = getBatch(pos);
     speakBatch();
@@ -251,20 +367,32 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
   function pause() {
     utteranceId++;
-    speechSynthesis.cancel();
+    if (ttsEngine === "kokoro" && audioElement) {
+      audioElement.pause();
+    } else {
+      speechSynthesis.cancel();
+    }
     isPaused = true;
   }
 
   function resume() {
     isPaused = false;
-    if (activeBatch.length > 0) {
+    if (ttsEngine === "kokoro" && audioElement) {
+      audioElement.play();
+    } else if (activeBatch.length > 0) {
       speakBatch();
     }
   }
 
   function stop() {
     utteranceId++;
-    speechSynthesis.cancel();
+    if (ttsEngine === "kokoro" && audioElement) {
+      audioElement.pause();
+      URL.revokeObjectURL(audioElement.src);
+      audioElement = null;
+    } else {
+      speechSynthesis.cancel();
+    }
     activeBatch = [];
     isPaused = false;
     renderContent();
@@ -325,45 +453,103 @@ SPDX-License-Identifier: AGPL-3.0-or-later
           Engine
           <select class="control-select" bind:value={ttsEngine}>
             <option value="web">Web</option>
+            <option value="kokoro">Kokoro</option>
           </select>
         </label>
 
-        <div class="control-label">
-          Voice
-          <div class="voice-dropdown">
-            <button
-              class="voice-dropdown-btn"
-              onclick={() => { voiceDropdownOpen = !voiceDropdownOpen; voiceDropdownMounted = true; }}
-            >
-              {selectedVoice?.name ?? "Select voice"}
-            </button>
-            {#if voiceDropdownMounted}
-            <div class="voice-dropdown-menu" class:hidden={!voiceDropdownOpen}>
-              <input
-                type="text"
-                class="voice-search"
-                placeholder="Search..."
-                bind:value={voiceSearch}
-              />
-              <label class="locale-filter">
-                <input type="checkbox" bind:checked={localeOnly} />
-                {userLang.toUpperCase()} only
-              </label>
-              <div class="voice-list">
-                {#each getFilteredVoices() as voice}
-                  <button
-                    class="voice-option"
-                    class:selected={selectedVoice === voice}
-                    onclick={() => { selectedVoice = voice; voiceDropdownOpen = false; }}
-                  >
-                    {voice.name}
-                  </button>
-                {/each}
+        {#if ttsEngine === "kokoro"}
+          <label class="control-label">
+            Dtype
+            <select class="control-select" bind:value={kokoroDtype} disabled={kokoroState !== "idle"}>
+              <option value="fp32">FP32</option>
+              <option value="fp16">FP16</option>
+              <option value="q8">Q8</option>
+              <option value="q4">Q4</option>
+              <option value="q4f16">Q4F16</option>
+            </select>
+          </label>
+
+          <label class="control-label">
+            Device
+            <select class="control-select" bind:value={kokoroDevice} disabled={kokoroState !== "idle"}>
+              <option value="wasm">WASM</option>
+              <option value="webgpu">WebGPU</option>
+            </select>
+          </label>
+
+          {#if kokoroState === "idle"}
+            <button class="control-btn" onclick={loadKokoroModel}>Load Model</button>
+          {:else if kokoroState === "loading-package"}
+            <div class="loading-status">Loading package...</div>
+          {:else if kokoroState === "loading-model"}
+            <div class="loading-status">
+              <div class="progress-bar">
+                <div
+                  class="progress-fill"
+                  style="width: {kokoroProgress && kokoroProgress.total > 0 ? (kokoroProgress.loaded / kokoroProgress.total * 100) : 0}%"
+                ></div>
               </div>
+              {#if kokoroProgress}
+                <span class="progress-text">
+                  {Math.round(kokoroProgress.loaded / 1024 / 1024)}MB / {Math.round(kokoroProgress.total / 1024 / 1024)}MB
+                </span>
+              {/if}
             </div>
-            {/if}
+          {:else if kokoroState === "error"}
+            <div class="error-status">{kokoroError}</div>
+            <button class="control-btn" onclick={() => kokoroState = "idle"}>Retry</button>
+          {:else if kokoroState === "ready"}
+            <label class="control-label">
+              Voice
+              <select class="control-select" bind:value={kokoroVoice}>
+                {#each KOKORO_VOICES as voice}
+                  <option value={voice.id}>{voice.name}</option>
+                {/each}
+              </select>
+            </label>
+          {/if}
+
+          {#if isGenerating}
+            <div class="generating-status">Generating...</div>
+          {/if}
+        {:else}
+          <div class="control-label">
+            Voice
+            <div class="voice-dropdown">
+              <button
+                class="voice-dropdown-btn"
+                onclick={() => { voiceDropdownOpen = !voiceDropdownOpen; voiceDropdownMounted = true; }}
+              >
+                {selectedVoice?.name ?? "Select voice"}
+              </button>
+              {#if voiceDropdownMounted}
+              <div class="voice-dropdown-menu" class:hidden={!voiceDropdownOpen}>
+                <input
+                  type="text"
+                  class="voice-search"
+                  placeholder="Search..."
+                  bind:value={voiceSearch}
+                />
+                <label class="locale-filter">
+                  <input type="checkbox" bind:checked={localeOnly} />
+                  {userLang.toUpperCase()} only
+                </label>
+                <div class="voice-list">
+                  {#each getFilteredVoices() as voice}
+                    <button
+                      class="voice-option"
+                      class:selected={selectedVoice === voice}
+                      onclick={() => { selectedVoice = voice; voiceDropdownOpen = false; }}
+                    >
+                      {voice.name}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+              {/if}
+            </div>
           </div>
-        </div>
+        {/if}
 
         <label class="control-label">
           Rate
@@ -588,5 +774,43 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
   .voice-option.selected {
     background: #e3f2fd;
+  }
+
+  .loading-status {
+    font-size: 0.8125rem;
+    color: #555;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 6px;
+    background: #ddd;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: #4a90d9;
+    transition: width 0.2s;
+  }
+
+  .progress-text {
+    font-size: 0.75rem;
+    color: #777;
+  }
+
+  .error-status {
+    font-size: 0.8125rem;
+    color: #c00;
+  }
+
+  .generating-status {
+    font-size: 0.8125rem;
+    color: #555;
+    font-style: italic;
   }
 </style>
