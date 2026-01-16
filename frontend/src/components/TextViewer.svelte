@@ -21,6 +21,32 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   let kokoroProgress = $state<KokoroProgress | null>(null);
   let kokoroError = $state<string | null>(null);
 
+  // Audio cache: Map from "${voice}:${sentence}" to audio Blob
+  const audioCache = new Map<string, Blob>();
+
+  // Pre-generation state
+  let isPreGenerating = $state(false);
+  let preGenProgress = $state({ current: 0, total: 0 });
+
+  // Worker pool config
+  const cpuCores = navigator.hardwareConcurrency || 4;
+  const deviceMemoryGB = (navigator as any).deviceMemory || 4;
+  const maxWorkers = cpuCores;
+
+  // Model sizes in MB per dtype (from https://huggingface.co/onnx-community/Kokoro-82M-ONNX/tree/main/onnx)
+  const MODEL_SIZE_MB: Record<KokoroDtype, number> = {
+    fp32: 326,
+    fp16: 163,
+    q8: 86,
+    q4: 305,
+    q4f16: 154,
+  };
+
+  let modelSizeMB = $derived(MODEL_SIZE_MB[kokoroDtype]);
+  const recommendedWorkers = Math.max(1, Math.floor(cpuCores / 2));
+  let preGenWorkerCount = $state(recommendedWorkers);
+  let memoryWarning = $derived(preGenWorkerCount * modelSizeMB > deviceMemoryGB * 1024 * 0.5);
+
   const KOKORO_VOICES = [
     { id: "af_heart", name: "Heart" },
     { id: "af_alloy", name: "Alloy" },
@@ -129,52 +155,94 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     }
   }
 
-  async function speakWithKokoro(text: string) {
-    if (kokoroState !== "ready") return;
+  async function preGenerateAll() {
+    if (kokoroState !== "ready" || isPreGenerating) return;
 
-    isGenerating = true;
+    const sentences: string[] = [];
+    for (const para of paragraphs) {
+      for (const sent of para.sentences) {
+        const key = `${kokoroVoice}:${sent}`;
+        if (!audioCache.has(key)) sentences.push(sent);
+      }
+    }
+    if (sentences.length === 0) return;
+
+    isPreGenerating = true;
+    preGenProgress = { current: 0, total: sentences.length };
 
     try {
       const kokoro = await import("../lib/kokoro");
-      const audioBlob = await kokoro.generate(text, kokoroVoice);
 
-      if (audioElement) {
-        audioElement.pause();
-        URL.revokeObjectURL(audioElement.src);
-        audioElement = null;
+      await kokoro.initializePool(preGenWorkerCount, kokoroDtype, kokoroDevice, () => {});
+
+      const results = await kokoro.generateWithPool(sentences, kokoroVoice, (completed) => {
+        preGenProgress = { current: completed, total: sentences.length };
+      });
+
+      for (const [sent, blob] of results) {
+        audioCache.set(`${kokoroVoice}:${sent}`, blob);
       }
 
-      const url = URL.createObjectURL(audioBlob);
-      audioElement = new Audio(url);
-      audioElement.playbackRate = rate;
-
-      audioElement.onended = () => {
-        URL.revokeObjectURL(url);
-        if (continuousMode) {
-          const nextPos = getNextBatchStart();
-          if (nextPos) {
-            activeBatch = getBatch(nextPos, true);
-            speakBatch();
-            return;
-          }
-        }
-        activeBatch = [];
-        renderContent();
-      };
-
-      audioElement.onerror = () => {
-        console.error("Audio playback error");
-        URL.revokeObjectURL(url);
-        activeBatch = [];
-        renderContent();
-      };
-
-      await audioElement.play();
+      kokoro.terminatePool();
     } catch (err) {
-      console.error("Kokoro generation error:", err);
+      console.error("Pre-generation error:", err);
     } finally {
+      isPreGenerating = false;
+    }
+  }
+
+  async function speakWithKokoro(text: string) {
+    if (kokoroState !== "ready") return;
+
+    const cacheKey = `${kokoroVoice}:${text}`;
+    let audioBlob = audioCache.get(cacheKey);
+
+    if (!audioBlob) {
+      isGenerating = true;
+      try {
+        const kokoro = await import("../lib/kokoro");
+        audioBlob = await kokoro.generate(text, kokoroVoice);
+        audioCache.set(cacheKey, audioBlob);
+      } catch (err) {
+        console.error("Kokoro generation error:", err);
+        isGenerating = false;
+        return;
+      }
       isGenerating = false;
     }
+
+    if (audioElement) {
+      audioElement.pause();
+      URL.revokeObjectURL(audioElement.src);
+      audioElement = null;
+    }
+
+    const url = URL.createObjectURL(audioBlob);
+    audioElement = new Audio(url);
+    audioElement.playbackRate = rate;
+
+    audioElement.onended = () => {
+      URL.revokeObjectURL(url);
+      if (continuousMode) {
+        const nextPos = getNextBatchStart();
+        if (nextPos) {
+          activeBatch = getBatch(nextPos, true);
+          speakBatch();
+          return;
+        }
+      }
+      activeBatch = [];
+      renderContent();
+    };
+
+    audioElement.onerror = () => {
+      console.error("Audio playback error");
+      URL.revokeObjectURL(url);
+      activeBatch = [];
+      renderContent();
+    };
+
+    await audioElement.play();
   }
 
   function getFilteredVoices(): SpeechSynthesisVoice[] {
@@ -542,6 +610,35 @@ SPDX-License-Identifier: AGPL-3.0-or-later
                 {/each}
               </select>
             </label>
+            {#if paragraphs.length > 0}
+              <div class="device-info">Detected: {cpuCores} threads, ~{deviceMemoryGB}GB+ RAM</div>
+              <label class="control-label">
+                Workers
+                <select class="control-select" bind:value={preGenWorkerCount} disabled={isPreGenerating}>
+                  {#each Array.from({length: maxWorkers}, (_, i) => i + 1) as n}
+                    <option value={n}>{n}{n === recommendedWorkers ? " (rec)" : ""} (~{n * modelSizeMB}MB)</option>
+                  {/each}
+                </select>
+              </label>
+              {#if memoryWarning}
+                <div class="memory-warning">May exceed available memory</div>
+              {/if}
+              {#if isPreGenerating}
+                <div class="loading-status">
+                  <div class="progress-bar">
+                    <div
+                      class="progress-fill"
+                      style="width: {preGenProgress.total > 0 ? (preGenProgress.current / preGenProgress.total * 100) : 0}%"
+                    ></div>
+                  </div>
+                  <span class="progress-text">
+                    {preGenProgress.current} / {preGenProgress.total} sentences
+                  </span>
+                </div>
+              {:else}
+                <button class="control-btn" onclick={preGenerateAll}>Pre-generate</button>
+              {/if}
+            {/if}
           {/if}
 
           {#if isGenerating}
@@ -847,5 +944,15 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     font-size: 0.8125rem;
     color: #555;
     font-style: italic;
+  }
+
+  .memory-warning {
+    font-size: 0.75rem;
+    color: #c00;
+  }
+
+  .device-info {
+    font-size: 0.75rem;
+    color: #777;
   }
 </style>
