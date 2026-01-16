@@ -71,16 +71,14 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
   <div class="content">
     {#if activeTab === "pdf"}
-      <div
+      <button
+        type="button"
         class="dropzone"
         class:dragover
-        role="button"
-        tabindex="0"
         ondragover={(e) => { e.preventDefault(); dragover = true; }}
         ondragleave={() => dragover = false}
         ondrop={handleDrop}
         onclick={() => input?.click()}
-        onkeydown={(e) => { if (e.key === "Enter") input?.click(); }}
       >
         <p>Drop a PDF here or click to select</p>
         {#if error}
@@ -92,7 +90,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
           accept="application/pdf,.pdf"
           oninput={handleInput}
         />
-      </div>
+      </button>
     {:else}
       <TextViewer />
     {/if}
@@ -113,12 +111,12 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   .tab {
     flex: 1;
     padding: 0.75rem 1rem;
-    border: 1px solid #ccc;
+    border: 1px solid var(--color-border);
     border-bottom: none;
-    background: #f5f5f5;
+    background: var(--color-bg-light);
     cursor: pointer;
     font-size: 1rem;
-    color: #555;
+    color: var(--color-text);
   }
 
   .tab:first-child {
@@ -140,7 +138,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   }
 
   .content {
-    border: 1px solid #ccc;
+    border: 1px solid var(--color-border);
     border-top: none;
     border-radius: 0 0 4px 4px;
     background: #fff;
@@ -157,10 +155,14 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     justify-content: center;
     cursor: pointer;
     min-height: 400px;
+    background: none;
+    border: none;
+    font: inherit;
+    width: 100%;
   }
 
   .dropzone.dragover {
-    background: #f5f5f5;
+    background: var(--color-bg-light);
   }
 
   input[type="file"] {
@@ -168,13 +170,13 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   }
 
   p {
-    color: #555;
+    color: var(--color-text);
     font-size: 1.25rem;
     margin: 0.5rem;
   }
 
   .error {
-    color: #c00;
+    color: var(--color-error);
     font-size: 1rem;
   }
 </style>

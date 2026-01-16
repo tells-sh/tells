@@ -17,7 +17,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     right: 0;
     padding: 0.5rem 1rem;
     font-size: 0.75rem;
-    color: #555;
+    color: var(--color-text);
     display: flex;
     gap: 1rem;
   }
