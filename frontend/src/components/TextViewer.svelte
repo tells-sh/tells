@@ -96,6 +96,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
   let batchSize = $state(1);
   let forwardOnly = $state(true);
+  let continuousMode = $state(false);
 
   let voiceSearch = $state("");
   let localeOnly = $state(true);
@@ -149,6 +150,14 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
       audioElement.onended = () => {
         URL.revokeObjectURL(url);
+        if (continuousMode) {
+          const nextPos = getNextBatchStart();
+          if (nextPos) {
+            activeBatch = getBatch(nextPos, true);
+            speakBatch();
+            return;
+          }
+        }
         activeBatch = [];
         renderContent();
       };
@@ -186,7 +195,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     return batch.some((p) => p.para === pos.para && p.sent === pos.sent);
   }
 
-  function getBatch(pos: Position): Position[] {
+  function getBatch(pos: Position, forceForward = false): Position[] {
     const clickedIdx = allPositions.findIndex(
       (p) => p.para === pos.para && p.sent === pos.sent
     );
@@ -194,7 +203,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
     const batch: Position[] = [];
 
-    if (forwardOnly) {
+    if (forwardOnly || forceForward) {
       for (let i = 0; i < batchSize && clickedIdx + i < allPositions.length; i++) {
         batch.push(allPositions[clickedIdx + i]);
       }
@@ -216,6 +225,20 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     return batch
       .map((pos) => paragraphs[pos.para]?.sentences[pos.sent] ?? "")
       .join(" ");
+  }
+
+  function getNextBatchStart(): Position | null {
+    if (activeBatch.length === 0) return null;
+
+    const lastPos = activeBatch[activeBatch.length - 1];
+    const lastIdx = allPositions.findIndex(
+      (p) => p.para === lastPos.para && p.sent === lastPos.sent
+    );
+
+    const nextIdx = lastIdx + 1;
+    if (nextIdx >= allPositions.length) return null;
+
+    return allPositions[nextIdx];
   }
 
   function updateParagraphs() {
@@ -339,6 +362,14 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
       utterance.onend = () => {
         if (thisUtteranceId === utteranceId) {
+          if (continuousMode) {
+            const nextPos = getNextBatchStart();
+            if (nextPos) {
+              activeBatch = getBatch(nextPos, true);
+              speakBatch();
+              return;
+            }
+          }
           activeBatch = [];
           renderContent();
         }
@@ -445,6 +476,10 @@ SPDX-License-Identifier: AGPL-3.0-or-later
         <label class="batch-label">
           <input type="checkbox" bind:checked={forwardOnly} />
           Forward
+        </label>
+        <label class="batch-label">
+          <input type="checkbox" bind:checked={continuousMode} />
+          Continuous
         </label>
       </div>
 
