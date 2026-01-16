@@ -73,10 +73,19 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 <Footer />
 
 <style>
+  :root {
+    --color-text: #555;
+    --color-text-muted: #777;
+    --color-border: #ccc;
+    --color-error: #c00;
+    --color-bg-light: #f5f5f5;
+    --color-bg-page: #e8e8e8;
+  }
+
   :global(body) {
     margin: 0;
     font-family: system-ui, sans-serif;
-    background: #e8e8e8;
+    background: var(--color-bg-page);
   }
 
   .loading {
@@ -84,7 +93,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     align-items: center;
     justify-content: center;
     height: 100vh;
-    color: #555;
+    color: var(--color-text);
     font-size: 1.25rem;
   }
 
@@ -98,7 +107,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   }
 
   .error {
-    color: #c00;
+    color: var(--color-error);
     font-size: 1.25rem;
   }
 

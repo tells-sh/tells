@@ -78,7 +78,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     gap: 1rem;
     background: #fff;
     padding: 0.5rem 1rem;
-    border: 1px solid #ccc;
+    border: 1px solid var(--color-border);
   }
 
   input {

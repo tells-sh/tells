@@ -7,6 +7,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 <script lang="ts" module>
   import type { KokoroState, KokoroDtype, KokoroDevice, KokoroProgress } from "../lib/kokoro";
+  import { KOKORO_VOICES, MODEL_SIZE_MB } from "../lib/voices";
 
   let voices = $state<SpeechSynthesisVoice[]>([]);
   let selectedVoice = $state<SpeechSynthesisVoice | null>(null);
@@ -33,50 +34,10 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   const deviceMemoryGB = (navigator as any).deviceMemory || 4;
   const maxWorkers = cpuCores;
 
-  // Model sizes in MB per dtype (from https://huggingface.co/onnx-community/Kokoro-82M-ONNX/tree/main/onnx)
-  const MODEL_SIZE_MB: Record<KokoroDtype, number> = {
-    fp32: 326,
-    fp16: 163,
-    q8: 86,
-    q4: 305,
-    q4f16: 154,
-  };
-
   let modelSizeMB = $derived(MODEL_SIZE_MB[kokoroDtype]);
   const recommendedWorkers = Math.max(1, Math.floor(cpuCores / 2));
   let preGenWorkerCount = $state(recommendedWorkers);
   let memoryWarning = $derived(preGenWorkerCount * modelSizeMB > deviceMemoryGB * 1024 * 0.5);
-
-  const KOKORO_VOICES = [
-    { id: "af_heart", name: "Heart" },
-    { id: "af_alloy", name: "Alloy" },
-    { id: "af_aoede", name: "Aoede" },
-    { id: "af_bella", name: "Bella" },
-    { id: "af_jessica", name: "Jessica" },
-    { id: "af_kore", name: "Kore" },
-    { id: "af_nicole", name: "Nicole" },
-    { id: "af_nova", name: "Nova" },
-    { id: "af_river", name: "River" },
-    { id: "af_sarah", name: "Sarah" },
-    { id: "af_sky", name: "Sky" },
-    { id: "am_adam", name: "Adam" },
-    { id: "am_echo", name: "Echo" },
-    { id: "am_eric", name: "Eric" },
-    { id: "am_fenrir", name: "Fenrir" },
-    { id: "am_liam", name: "Liam" },
-    { id: "am_michael", name: "Michael" },
-    { id: "am_onyx", name: "Onyx" },
-    { id: "am_puck", name: "Puck" },
-    { id: "am_santa", name: "Santa" },
-    { id: "bf_alice", name: "Alice" },
-    { id: "bf_emma", name: "Emma" },
-    { id: "bf_isabella", name: "Isabella" },
-    { id: "bf_lily", name: "Lily" },
-    { id: "bm_daniel", name: "Daniel" },
-    { id: "bm_fable", name: "Fable" },
-    { id: "bm_george", name: "George" },
-    { id: "bm_lewis", name: "Lewis" },
-  ] as const;
 
   function loadVoices() {
     voices = speechSynthesis.getVoices();
@@ -89,6 +50,15 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 <script lang="ts">
   import { parseText, type Paragraph } from "../lib/text";
+  import {
+    type Position,
+    posInBatch,
+    posEq,
+    getAllPositions,
+    getBatch,
+    getBatchText,
+    getNextBatchStart,
+  } from "../lib/batch";
 
   $effect(() => {
     speechSynthesis.addEventListener("voiceschanged", loadVoices);
@@ -98,27 +68,14 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     };
   });
 
-  interface Position {
-    para: number;
-    sent: number;
-  }
-
   let text = $state("");
   let paragraphs = $state<Paragraph[]>([]);
-  let allPositions = $derived.by(() => {
-    const positions: Position[] = [];
-    paragraphs.forEach((p, pi) => {
-      p.sentences.forEach((_, si) => {
-        positions.push({ para: pi, sent: si });
-      });
-    });
-    return positions;
-  });
+  let allPositions = $derived(getAllPositions(paragraphs));
   let hoveredBatch = $state<Position[]>([]);
   let activeBatch = $state<Position[]>([]);
   let isPaused = $state(false);
   let isEditing = $state(false);
-  let editorEl: HTMLDivElement;
+  let editorEl = $state<HTMLDivElement | null>(null);
 
   let batchSize = $state(1);
   let forwardOnly = $state(true);
@@ -224,22 +181,20 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     audioElement.onended = () => {
       URL.revokeObjectURL(url);
       if (continuousMode) {
-        const nextPos = getNextBatchStart();
+        const nextPos = getNextBatchStart(activeBatch, allPositions);
         if (nextPos) {
-          activeBatch = getBatch(nextPos, true);
+          activeBatch = getBatch(nextPos, allPositions, batchSize, forwardOnly, true);
           speakBatch();
           return;
         }
       }
       activeBatch = [];
-      renderContent();
     };
 
     audioElement.onerror = () => {
       console.error("Audio playback error");
       URL.revokeObjectURL(url);
       activeBatch = [];
-      renderContent();
     };
 
     await audioElement.play();
@@ -259,99 +214,23 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
   let utteranceId = 0;
 
-  function posInBatch(pos: Position, batch: Position[]): boolean {
-    return batch.some((p) => p.para === pos.para && p.sent === pos.sent);
-  }
-
-  function getBatch(pos: Position, forceForward = false): Position[] {
-    const clickedIdx = allPositions.findIndex(
-      (p) => p.para === pos.para && p.sent === pos.sent
-    );
-    if (clickedIdx === -1) return [pos];
-
-    const batch: Position[] = [];
-
-    if (forwardOnly || forceForward) {
-      for (let i = 0; i < batchSize && clickedIdx + i < allPositions.length; i++) {
-        batch.push(allPositions[clickedIdx + i]);
-      }
-    } else {
-      const before = Math.floor((batchSize - 1) / 2);
-      const after = batchSize - 1 - before;
-      const startIdx = Math.max(0, clickedIdx - before);
-      const endIdx = Math.min(allPositions.length - 1, clickedIdx + after);
-
-      for (let i = startIdx; i <= endIdx; i++) {
-        batch.push(allPositions[i]);
-      }
-    }
-
-    return batch;
-  }
-
-  function getBatchText(batch: Position[]): string {
-    return batch
-      .map((pos) => paragraphs[pos.para]?.sentences[pos.sent] ?? "")
-      .join(" ");
-  }
-
-  function getNextBatchStart(): Position | null {
-    if (activeBatch.length === 0) return null;
-
-    const lastPos = activeBatch[activeBatch.length - 1];
-    const lastIdx = allPositions.findIndex(
-      (p) => p.para === lastPos.para && p.sent === lastPos.sent
-    );
-
-    const nextIdx = lastIdx + 1;
-    if (nextIdx >= allPositions.length) return null;
-
-    return allPositions[nextIdx];
-  }
-
   function updateParagraphs() {
     paragraphs = parseText(text);
   }
 
   function syncText() {
+    if (!editorEl) return;
     text = editorEl.innerText;
     updateParagraphs();
   }
 
-  function posEq(a: Position | null, b: Position | null): boolean {
-    if (!a || !b) return false;
-    return a.para === b.para && a.sent === b.sent;
-  }
-
-  function renderContent() {
-    if (!editorEl) return;
-
-    if (paragraphs.length === 0) {
-      editorEl.innerHTML = "";
-      return;
+  // When editing starts and editorEl mounts, focus it and populate with text
+  $effect(() => {
+    if (isEditing && editorEl) {
+      editorEl.innerText = text;
+      editorEl.focus();
     }
-
-    editorEl.innerHTML = paragraphs
-      .map(
-        (p, pi) =>
-          `<p>${p.sentences
-            .map((s, si) => {
-              const pos = { para: pi, sent: si };
-              const isActive = posInBatch(pos, activeBatch);
-              const isHovered = posInBatch(pos, hoveredBatch) && !isActive;
-              return `<span class="sentence${isActive ? " active" : ""}${isHovered ? " hovered" : ""}" data-para="${pi}" data-sent="${si}">${escapeHtml(s)}</span>`;
-            })
-            .join(" ")}</p>`
-      )
-      .join("");
-  }
-
-  function escapeHtml(str: string): string {
-    return str
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-  }
+  });
 
   function handleFocus() {
     isEditing = true;
@@ -359,9 +238,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   }
 
   function exitEditMode() {
-    isEditing = false;
     syncText();
-    renderContent();
+    isEditing = false;
   }
 
   function getPositionFromElement(el: HTMLElement): Position | null {
@@ -382,7 +260,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   }
 
   function enterEditMode() {
-    editorEl.focus();
+    isEditing = true;
   }
 
   function handleMouseOver(e: MouseEvent) {
@@ -390,10 +268,9 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
     const pos = getPositionFromElement(e.target as HTMLElement);
     if (pos) {
-      const newBatch = getBatch(pos);
+      const newBatch = getBatch(pos, allPositions, batchSize, forwardOnly);
       if (newBatch.length !== hoveredBatch.length || !newBatch.every((p, i) => posEq(p, hoveredBatch[i]))) {
         hoveredBatch = newBatch;
-        renderContent();
       }
     }
   }
@@ -404,20 +281,17 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     const target = e.target as HTMLElement;
     if (target.classList.contains("sentence")) {
       hoveredBatch = [];
-      renderContent();
     }
   }
 
   function speakBatch() {
     if (activeBatch.length === 0) {
       isPaused = false;
-      renderContent();
       return;
     }
 
-    const batchText = getBatchText(activeBatch);
+    const batchText = getBatchText(activeBatch, paragraphs);
     isPaused = false;
-    renderContent();
 
     if (ttsEngine === "kokoro") {
       speakWithKokoro(batchText);
@@ -431,15 +305,14 @@ SPDX-License-Identifier: AGPL-3.0-or-later
       utterance.onend = () => {
         if (thisUtteranceId === utteranceId) {
           if (continuousMode) {
-            const nextPos = getNextBatchStart();
+            const nextPos = getNextBatchStart(activeBatch, allPositions);
             if (nextPos) {
-              activeBatch = getBatch(nextPos, true);
+              activeBatch = getBatch(nextPos, allPositions, batchSize, forwardOnly, true);
               speakBatch();
               return;
             }
           }
           activeBatch = [];
-          renderContent();
         }
       };
 
@@ -460,7 +333,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
       audioElement = null;
     }
     speechSynthesis.cancel();
-    activeBatch = getBatch(pos);
+    activeBatch = getBatch(pos, allPositions, batchSize, forwardOnly);
     speakBatch();
   }
 
@@ -494,25 +367,50 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     }
     activeBatch = [];
     isPaused = false;
-    renderContent();
   }
 </script>
 
 <div class="container">
-  <div
-    bind:this={editorEl}
-    class="editor"
-    class:editing={isEditing}
-    contenteditable="true"
-    role="textbox"
-    tabindex="0"
-    aria-multiline="true"
-    onfocus={handleFocus}
-    onblur={exitEditMode}
-    onmousedown={handleMouseDown}
-    onmouseover={handleMouseOver}
-    onmouseout={handleMouseOut}
-  ></div>
+  {#if isEditing}
+    <div
+      bind:this={editorEl}
+      class="editor editing"
+      contenteditable="true"
+      role="textbox"
+      tabindex="0"
+      aria-multiline="true"
+      onfocus={handleFocus}
+      onblur={exitEditMode}
+    ></div>
+  {:else}
+    <div
+      class="editor"
+      role="textbox"
+      tabindex="0"
+      onfocus={handleFocus}
+      onblur={() => hoveredBatch = []}
+      onmousedown={handleMouseDown}
+      onmouseover={handleMouseOver}
+      onmouseout={handleMouseOut}
+    >
+      {#each paragraphs as p, pi}
+        <p>
+          {#each p.sentences as sentence, si}
+            {@const pos = { para: pi, sent: si }}
+            {@const isActive = posInBatch(pos, activeBatch)}
+            {@const isHovered = posInBatch(pos, hoveredBatch) && !isActive}
+            <span
+              class="sentence"
+              class:active={isActive}
+              class:hovered={isHovered}
+              data-para={pi}
+              data-sent={si}
+            >{sentence}</span>{' '}
+          {/each}
+        </p>
+      {/each}
+    </div>
+  {/if}
 
   {#if paragraphs.length === 0 && !isEditing}
     <div class="placeholder">Click to type or paste text...</div>
@@ -716,15 +614,15 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   .control-btn {
     padding: 0.375rem 0.625rem;
     font-size: 0.8125rem;
-    background: #f5f5f5;
-    border: 1px solid #ccc;
+    background: var(--color-bg-light);
+    border: 1px solid var(--color-border);
     border-radius: 3px;
     cursor: pointer;
     white-space: nowrap;
   }
 
   .control-btn:hover {
-    background: #e8e8e8;
+    background: var(--color-bg-page);
   }
 
   .editor {
@@ -786,14 +684,14 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     align-items: center;
     gap: 0.375rem;
     font-size: 0.8125rem;
-    color: #555;
+    color: var(--color-text);
   }
 
   .batch-input {
     width: 3rem;
     padding: 0.25rem;
     font-size: 0.8125rem;
-    border: 1px solid #ccc;
+    border: 1px solid var(--color-border);
     border-radius: 3px;
   }
 
@@ -809,13 +707,13 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     flex-direction: column;
     gap: 0.25rem;
     font-size: 0.8125rem;
-    color: #555;
+    color: var(--color-text);
   }
 
   .control-select {
     padding: 0.25rem;
     font-size: 0.8125rem;
-    border: 1px solid #ccc;
+    border: 1px solid var(--color-border);
     border-radius: 3px;
     max-width: 120px;
   }
@@ -826,7 +724,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
   .rate-value {
     font-size: 0.75rem;
-    color: #777;
+    color: var(--color-text-muted);
   }
 
   .voice-dropdown {
@@ -839,7 +737,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     font-size: 0.8125rem;
     text-align: left;
     background: #fff;
-    border: 1px solid #ccc;
+    border: 1px solid var(--color-border);
     border-radius: 3px;
     cursor: pointer;
     max-width: 120px;
@@ -854,7 +752,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     left: 0;
     width: 200px;
     background: #fff;
-    border: 1px solid #ccc;
+    border: 1px solid var(--color-border);
     border-radius: 3px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     z-index: 100;
@@ -876,7 +774,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     gap: 0.25rem;
     padding: 0.375rem;
     font-size: 0.75rem;
-    color: #555;
+    color: var(--color-text);
     border-bottom: 1px solid #eee;
   }
 
@@ -910,7 +808,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
   .loading-status {
     font-size: 0.8125rem;
-    color: #555;
+    color: var(--color-text);
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
@@ -932,27 +830,27 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
   .progress-text {
     font-size: 0.75rem;
-    color: #777;
+    color: var(--color-text-muted);
   }
 
   .error-status {
     font-size: 0.8125rem;
-    color: #c00;
+    color: var(--color-error);
   }
 
   .generating-status {
     font-size: 0.8125rem;
-    color: #555;
+    color: var(--color-text);
     font-style: italic;
   }
 
   .memory-warning {
     font-size: 0.75rem;
-    color: #c00;
+    color: var(--color-error);
   }
 
   .device-info {
     font-size: 0.75rem;
-    color: #777;
+    color: var(--color-text-muted);
   }
 </style>
