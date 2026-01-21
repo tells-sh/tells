@@ -24,6 +24,28 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
   // Audio cache: Map from "${voice}:${sentence}" to audio Blob
   const audioCache = new Map<string, Blob>();
+  let cacheVersion = $state(0);
+
+  function setCacheEntry(key: string, blob: Blob) {
+    audioCache.set(key, blob);
+    cacheVersion++;
+  }
+
+  let cacheStats = $derived.by(() => {
+    void cacheVersion;
+    let totalSize = 0;
+    const entries: Array<{ voice: string; sentence: string; size: number }> = [];
+
+    for (const [key, blob] of audioCache) {
+      const colonIdx = key.indexOf(':');
+      const voice = key.slice(0, colonIdx);
+      const sentence = key.slice(colonIdx + 1);
+      totalSize += blob.size;
+      entries.push({ voice, sentence, size: blob.size });
+    }
+
+    return { count: audioCache.size, totalSize, entries };
+  });
 
   // Pre-generation state
   let isPreGenerating = $state(false);
@@ -91,6 +113,18 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
   const userLang = navigator.language.slice(0, 2);
 
+  let cacheExpanded = $state(false);
+
+  function formatSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  }
+
+  function truncate(str: string, maxLen: number): string {
+    return str.length <= maxLen ? str : str.slice(0, maxLen - 3) + '...';
+  }
+
   async function loadKokoroModel() {
     kokoroState = "loading-package";
     kokoroError = null;
@@ -137,7 +171,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
       });
 
       for (const [sent, blob] of results) {
-        audioCache.set(`${kokoroVoice}:${sent}`, blob);
+        setCacheEntry(`${kokoroVoice}:${sent}`, blob);
       }
 
       kokoro.terminatePool();
@@ -159,7 +193,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
       try {
         const kokoro = await import("../lib/kokoro");
         audioBlob = await kokoro.generate(text, kokoroVoice);
-        audioCache.set(cacheKey, audioBlob);
+        setCacheEntry(cacheKey, audioBlob);
       } catch (err) {
         console.error("Kokoro generation error:", err);
         isGenerating = false;
@@ -537,6 +571,27 @@ SPDX-License-Identifier: AGPL-3.0-or-later
                 <button class="control-btn" onclick={preGenerateAll}>Pre-generate</button>
               {/if}
             {/if}
+            {#if cacheStats.count > 0}
+              <div class="cache-section">
+                <button
+                  class="cache-toggle"
+                  onclick={() => cacheExpanded = !cacheExpanded}
+                >
+                  Cache: {cacheStats.count} items ({formatSize(cacheStats.totalSize)})
+                </button>
+                {#if cacheExpanded}
+                  <div class="cache-list">
+                    {#each cacheStats.entries as entry}
+                      <div class="cache-entry">
+                        <span class="cache-voice">{entry.voice}</span>
+                        <span class="cache-sentence">{truncate(entry.sentence, 30)}</span>
+                        <span class="cache-size">{formatSize(entry.size)}</span>
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            {/if}
           {/if}
 
           {#if isGenerating}
@@ -852,5 +907,60 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   .device-info {
     font-size: 0.75rem;
     color: var(--color-text-muted);
+  }
+
+  .cache-section {
+    margin-top: 0.5rem;
+    border-top: 1px solid var(--color-border);
+    padding-top: 0.5rem;
+  }
+
+  .cache-toggle {
+    width: 100%;
+    padding: 0.25rem;
+    font-size: 0.75rem;
+    text-align: left;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-muted);
+  }
+
+  .cache-toggle:hover {
+    color: var(--color-text);
+  }
+
+  .cache-list {
+    margin-top: 0.5rem;
+    max-height: 150px;
+    overflow-y: auto;
+    font-size: 0.75rem;
+  }
+
+  .cache-entry {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.125rem 0;
+    border-bottom: 1px solid #eee;
+  }
+
+  .cache-voice {
+    font-weight: 500;
+    color: var(--color-text);
+    min-width: 70px;
+  }
+
+  .cache-sentence {
+    flex: 1;
+    color: var(--color-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cache-size {
+    color: var(--color-text-muted);
+    min-width: 50px;
+    text-align: right;
   }
 </style>
