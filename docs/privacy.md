@@ -11,14 +11,14 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 > Contents may change. Do not treat it as a statement of current product
 > behavior or data practices.
 
-PDFs never leave the browser. For paid features, we send: plain text for server TTS, page images for OCR, and extracted text for Radio Drama. None of this is logged or stored: processed in memory, then discarded. The free tier runs entirely in-browser with full privacy.
+Documents and text stay in the browser unless the user chooses a server-side feature. Server TTS receives text, OCR receives page images, and Radio Drama receives extracted text. That data is processed in memory and discarded, not logged or stored. The free tier runs in-browser and does not require an account.
 
 ## Data Residency
 
 | Service       | Location | Data                                             |
 | ------------- | -------- | ------------------------------------------------ |
-| Hetzner       | Germany  | App DB (usage, subscriptions, preferences, auth) |
-| Modal         | US       | Text for TTS (transient, not stored)             |
+| Hetzner       | Germany  | Usage, subscriptions, notification preferences, auth |
+| Modal         | US       | Text for TTS and page images for OCR (transient) |
 | Lemon Squeezy | US       | Name, email, payment info, billing address       |
 | Resend        | US       | Email addresses (at send time)                   |
 
@@ -32,9 +32,9 @@ Where user data lives:
 
 | Location               | Data                                                |
 | ---------------------- | --------------------------------------------------- |
-| SQLite (ours)          | Usage, subscription, notification preferences, auth |
+| SQLite (ours)          | Usage, subscriptions, notification preferences      |
+| Better Auth            | Users, passwords, TOTP, passkeys                    |
 | Lemon Squeezy          | Name, email, payment info                           |
-| GoatCounter            | Nothing (anonymous analytics)                       |
 | Browser IndexedDB/OPFS | Audio cache, PDFs (user clears locally)             |
 
-Contact: privacy@tells.sh (response within 30 days)
+Contact: privacy@tells.sh. We respond to data subject requests within one month, or explain any GDPR-permitted extension within that month.
