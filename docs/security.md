@@ -15,7 +15,7 @@ All connections use HTTPS/TLS (Caddy handles this automatically). Text sent to t
 
 SQL injection is prevented via SQLAlchemy ORM and parameterized queries. User input never gets concatenated into SQL strings.
 
-RCE prevention: no file uploads (PDFs stay in the browser), no user input to subprocess/os.system, no pickle (JSON only), and dependencies stay updated via Dependabot and pip-audit.
+RCE prevention: documents and text stay in the browser unless the user chooses server-side OCR or paid processing. Uploaded files and text are treated as untrusted data, never code. The backend does not pass user input to `subprocess` or `os.system`, does not load pickle files, and uses JSON for structured data. Dependencies stay updated via Dependabot and `pip-audit`.
 
 Server hardening: runs as non-root, firewall (ufw) allows only ports 80 and 443, Fail2ban blocks brute force attempts, rate limiting on API endpoints.
 
