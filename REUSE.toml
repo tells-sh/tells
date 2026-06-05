@@ -1,0 +1,6 @@
+version = 1
+
+[[annotations]]
+path = [".gitignore", ".editorconfig", "frontend/package.json", "frontend/package-lock.json", "frontend/tsconfig.json"]
+SPDX-FileCopyrightText = "2026 Jason Scheffel <contact@jasonscheffel.com>"
+SPDX-License-Identifier = "CC0-1.0"

@@ -1,8 +1,13 @@
+<!--
+SPDX-FileCopyrightText: 2026 Jason Scheffel <contact@jasonscheffel.com>
+SPDX-License-Identifier: CC-BY-SA-4.0
+-->
+
 # Contributing
 
 ## License
 
-This project is licensed under AGPL-3.0-or-later. By contributing, you agree that your contributions will be licensed under the same terms. Use [SPDX](https://spdx.dev/learn/handling-license-info/) license identifiers in source files.
+Code is licensed under AGPL-3.0-or-later; documentation and other prose under CC BY-SA 4.0. By contributing, you agree that your contributions will be licensed under the same terms. Use [SPDX](https://spdx.dev/learn/handling-license-info/) license identifiers in source files.
 
 ## Signing Requirements
 
