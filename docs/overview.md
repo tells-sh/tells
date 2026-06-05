@@ -11,17 +11,15 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 > Contents may change. Do not treat it as a statement of current product
 > behavior or data practices.
 
-Tells is a browser-based PDF reader with text-to-speech and synchronized word highlighting. It converts PDFs to audio using the browser's built-in speech synthesis, local neural TTS (Piper, Kokoro via ONNX), or server-side models for paid users.
+Tells is text-to-speech software. It reads PDFs, pasted text, and text piped in from the CLI, with synchronized word highlighting. Voices come from the browser's built-in speech synthesis, local neural models (Piper, Kokoro via ONNX), or server-side models for paid users. OCR handles scanned documents.
 
 ## Design Philosophy
 
-The UI should be fast, simple, and reliable. No waiting for JS frameworks to hydrate, no mystery meat navigation. When someone loads the page, they should immediately understand what everything does. Progress indicators are fine for actual work (TTS generation, sync uploads), but the app shouldn't feel sluggish or block interaction.
+Fast, simple, reliable. No waiting for frameworks to hydrate, no mystery meat navigation. Progress indicators are for actual work (TTS generation, sync uploads); nothing else should block.
 
-Aesthetically, think sourcehut: clean, functional, text-focused, but a bit easier to navigate. No gradients, no glassmorphism, no animations just because we can. Progressive disclosure keeps advanced features out of the way until needed.
+Plain, text-focused design. No gradients, no animations for their own sake. Advanced features stay out of the way until you need them.
 
-Privacy comes first. PDFs never leave the device unless the user explicitly opts into paid server features. Full transparency on pricing, services used, and data handling. No dark patterns, no artificial feature gating, no annual discount tricks. The free tier should be genuinely useful. Kokoro TTS runs entirely in the browser and sounds great.
-
-If something can work locally, it should work locally. Don't force server dependency where it isn't needed.
+Everything that can run locally runs locally. The cloud is an option, not a requirement, and it's always obvious when something leaves your device. Pricing, services, and data handling are documented. No dark patterns, no artificial feature gating, no annual discount tricks.
 
 ## Tech Stack
 
@@ -37,12 +35,12 @@ If something can work locally, it should work locally. Don't force server depend
 
 ## Free vs Paid
 
-Free users get unlimited browser-based TTS (Web Speech API, espeak, Piper, Kokoro), a local PDF library, and full offline functionality. No account required.
+Free users get unlimited browser-based TTS (Web Speech API, espeak, Piper, Kokoro), a local library, and full offline functionality. No account required.
 
-Paid tiers add server-side features: high-end TTS voices (Kokoro, Chatterbox), OCR for scanned documents, cloud sync, Radio Drama mode, and audiobook export.
+Paid tiers run the heavy work server-side: TTS on GPUs (Kokoro, Chatterbox), OCR for scanned documents, cloud sync, Radio Drama mode, and audiobook export.
 
 ## Revenue
 
-Primary revenue comes from paid subscriptions. Secondary options include donations/GitHub Sponsors, and potentially accessibility grants or enterprise licenses down the road.
+Paid subscriptions, plus donations/GitHub Sponsors.
 
 **Domain:** tells.sh
