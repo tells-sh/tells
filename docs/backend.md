@@ -11,7 +11,7 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 > Contents may change. Do not treat it as a statement of current product
 > behavior or data practices.
 
-The backend is FastAPI (Python) with SQLite in WAL mode, backed up continuously via Litestream. TTS engines use an adapter pattern so we can swap them without API changes.
+The backend is FastAPI (Python) with SQLite in WAL mode. Litestream handles continuous backups. TTS engines sit behind adapters so we can swap them without API changes.
 
 ## Hosting
 
@@ -23,27 +23,27 @@ tells.sh -> Hetzner VPS
             `-- FastAPI (/api)
 ```
 
-Caddy handles HTTPS automatically via Let's Encrypt and serves static files directly. API routes proxy to FastAPI. Cloudflare can sit in front later for CDN if needed (free tier, just DNS changes).
+Caddy handles HTTPS through Let's Encrypt, serves static files, and proxies API routes to FastAPI. Cloudflare can sit in front later if we need a CDN.
 
 ## GPU
 
-Server-side TTS and OCR run on Modal Serverless with NVIDIA T4 GPUs at \$0.000164/s (or NVIDIA L4 at \$0.000222/s if we need more speed). Cold starts are 1-5 seconds. Modal gives \$30/month in free credits, enough for roughly 14 books.
+Paid TTS and OCR run server-side on Modal Serverless with NVIDIA T4 GPUs. L4 GPUs are the upgrade path if T4 is too slow. Modal bills by runtime and includes free credits, so idle capacity does not cost us anything.
 
-The free tier allows 10 concurrent GPUs and scales automatically; no queue management on our end.
+Modal handles GPU scaling. We still keep our own fairness queue so one user cannot tie up every job.
 
 ## OCR
 
-Marker handles scanned documents, math (returns LaTeX), and PDFs with broken text layers or bad reading order. It also returns text positions, useful for word highlighting. The Speech Rule Engine runs in-browser to convert LaTeX to spoken form ("x^2" becomes "x squared").
+Marker handles scanned documents, math output as LaTeX, and PDFs with broken text layers or bad reading order. It also returns text positions for word highlighting. The Speech Rule Engine runs in-browser to turn LaTeX into speech, so `x^2` becomes e.g. "x squared".
 
-Cost is around $0.004 per page. Only pages that need it get processed; well-formed PDFs just use PDF.js extraction, which is free and local.
+OCR has a server-side GPU cost, so only pages that need it get processed. Well-formed PDFs use local PDF.js text extraction instead.
 
 ## Batch Processing
 
-Users can request up to 25 pages at once for pre-caching. A round-robin queue ensures each user gets one page processed per rotation, preventing any single user from blocking others. This meshes well with Modal's 10 GPU concurrency limit, so everyone makes progress evenly.
+Users can queue batches for pre-caching. Jobs run round-robin by user, one page per rotation, so one large document cannot block everyone else.
 
 ## Auth
 
-Authentication uses Better Auth (self-hosted). Supports email/password, TOTP, WebAuthn/passkeys, and optionally Google sign-in (requests email only, not name). FastAPI verifies JWTs.
+Authentication uses self-hosted Better Auth: email/password, TOTP, WebAuthn/passkeys, and optional Google sign-in. Google requests email only, not name. FastAPI verifies JWTs.
 
 Free users don't need an account at all; everything runs in the browser.
 
