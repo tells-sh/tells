@@ -11,14 +11,14 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 > Contents may change. Do not treat it as a statement of current product
 > behavior or data practices.
 
-Documents and text stay in the browser unless the user chooses a server-side feature. Server TTS receives text, OCR receives page images, and Radio Drama receives extracted text. That data is processed in memory and discarded, not logged or stored. The free tier runs in-browser and does not require an account.
+Documents and text stay in the browser unless the user chooses a server-side feature. Server TTS receives the text to speak and returns audio. Server OCR receives the pages that need OCR and returns extracted text, text positions, and math markup when present. Radio Drama receives extracted text and returns audio and metadata. Server-side job data is processed for the request and not intentionally stored by Tells. The free tier runs in-browser and does not require an account.
 
 ## Data Residency
 
 | Service       | Location | Data                                             |
 | ------------- | -------- | ------------------------------------------------ |
 | Hetzner       | Germany  | Usage, subscriptions, notification preferences, auth |
-| Modal         | US       | Text for TTS and page images for OCR (transient) |
+| Modal         | US       | Text, OCR pages, extracted text, and generated audio (transient) |
 | Lemon Squeezy | US       | Name, email, payment info, billing address       |
 | Resend        | US       | Email addresses (at send time)                   |
 
