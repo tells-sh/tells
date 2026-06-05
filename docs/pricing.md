@@ -11,7 +11,7 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 > Contents may change. Do not treat it as a statement of current product
 > behavior or data practices.
 
-Full transparency on where the money goes. Assuming 1 book = 500 pages:
+Placeholder pricing math. These numbers are not final. They show the shape of the model, assuming 1 book = 500 pages:
 
 | Plan | Books | GPU cost | LS fees | Infra | Margin | Dev % |
 | ---- | ----- | -------- | ------- | ----- | ------ | ----- |
