@@ -30,7 +30,7 @@ Everything that can run locally runs locally. The cloud is an option, not a requ
 | Hosting  | Hetzner VPS + Caddy                                 |
 | GPU      | Modal Serverless (NVIDIA T4/L4)                     |
 | Auth     | Better Auth                                         |
-| Payments | Lemon Squeezy                                       |
+| Payments | Stripe Managed Payments                             |
 | Secrets  | SOPS                                                |
 
 ## Free vs Paid

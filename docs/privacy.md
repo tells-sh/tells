@@ -19,7 +19,7 @@ Documents and text stay in the browser unless the user chooses a server-side fea
 | ------------- | -------- | ------------------------------------------------ |
 | Hetzner       | Germany  | Usage, subscriptions, notification preferences, auth |
 | Modal         | US       | Text, OCR pages, extracted text, and generated audio (transient) |
-| Lemon Squeezy | US       | Name, email, payment info, billing address       |
+| Stripe        | US       | Name, email, payment info, billing address       |
 | Resend        | US       | Email addresses (at send time)                   |
 
 Application data we control stays in Germany. Third-party services for payments and email may process data in the US. Admin access happens via SSH for operations only; no downloading the database to laptops.
@@ -34,7 +34,7 @@ Where user data lives:
 | ---------------------- | --------------------------------------------------- |
 | SQLite (ours)          | Usage, subscriptions, notification preferences      |
 | Better Auth            | Users, passwords, TOTP, passkeys                    |
-| Lemon Squeezy          | Name, email, payment info                           |
+| Stripe                 | Name, email, payment info                           |
 | Browser IndexedDB/OPFS | Audio cache, PDFs (user clears locally)             |
 
 Contact: privacy@tells.sh. We respond to data subject requests within one month, or explain any GDPR-permitted extension within that month.

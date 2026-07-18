@@ -54,7 +54,7 @@ Self-hosted deployments have two auth modes:
 
 ## Payments
 
-Lemon Squeezy handles payments, VAT, receipts, and chargebacks. Webhooks sync subscription status to our database.
+Stripe Managed Payments handles payments, VAT, receipts, and chargebacks as merchant of record. Webhooks sync subscription status to our database.
 
 ## Email
 
@@ -65,7 +65,7 @@ Resend handles transactional email: auth emails (verification, password reset) a
 Three tables in SQLite:
 
 - **Usage**: `user_id`, `gpu_requests_this_month`, `bonus_credits`
-- **Subscriptions**: `user_id`, `lemon_squeezy_subscription_id`, `status`, `period_end`
+- **Subscriptions**: `user_id`, `stripe_subscription_id`, `status`, `period_end`
 - **NotificationPreferences**: `user_id`, `security_alerts`
 
 Better Auth handles all auth data (users, passwords, TOTP, passkeys). We only store usage tracking, subscription state, and notification preferences.

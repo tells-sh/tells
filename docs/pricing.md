@@ -13,8 +13,8 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 Placeholder pricing math. These numbers are not final. They show the shape of the model, assuming 1 book = 500 pages:
 
-| Plan | Books | GPU cost | LS fees | Infra | Margin | Dev % |
-| ---- | ----- | -------- | ------- | ----- | ------ | ----- |
+| Plan | Books | GPU cost | Stripe fees | Infra | Margin | Dev % |
+| ---- | ----- | -------- | ----------- | ----- | ------ | ----- |
 | $5   | 1     | $2.05    | $0.75   | $0.22 | $1.98  | 40%   |
 | $9   | 2     | $4.10    | $0.95   | $0.22 | $3.73  | 41%   |
 | $15  | 4     | $8.20    | $1.25   | $0.22 | $5.33  | 36%   |
