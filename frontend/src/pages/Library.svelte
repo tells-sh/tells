@@ -173,15 +173,18 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     font: inherit;
     background: var(--card);
     color: var(--muted);
-    border: 1px solid var(--line);
+    border: 0;
+    box-shadow: 0 0 0 1px var(--line);
     padding: 7px 14px;
     border-radius: 99px;
     cursor: pointer;
+    transform: translateZ(0);
   }
 
   .filters button.active {
     background: var(--ink);
     color: var(--bg);
+    box-shadow: 0 0 0 1px var(--ink);
   }
 
   input {
