@@ -5,19 +5,47 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 <script lang="ts">
   import ThemeToggle from "../components/ThemeToggle.svelte";
+  import type { KokoroDevice, KokoroDtype } from "../lib/kokoro";
+  import { KOKORO_VOICES, MODEL_SIZE_MB, type KokoroVoiceId } from "../lib/voices";
 
   const liveWords =
     "The sentence you are hearing right now was produced by a machine, and the voice reading it to you is also a machine, which means at no point in this pipeline was a person involved.".split(
       " ",
     );
 
-  const voices = ["kokoro / local", "piper / local", "web speech", "kokoro / gpu", "chatterbox / gpu"];
+  const engines = ["kokoro / local", "piper / local", "web speech", "kokoro / gpu", "chatterbox / gpu"];
   const speeds = ["1.0x", "1.2x", "1.5x", "1.8x", "2.0x"];
+  const dtypes: KokoroDtype[] = ["q8", "fp16", "q4f16", "fp32", "q4"];
+  const devices: KokoroDevice[] = ["wasm", "webgpu", "cpu"];
 
   let playing = $state(true);
-  let voiceIdx = $state(0);
+  let engineIdx = $state(0);
   let speedIdx = $state(1);
+  let kokoroVoice = $state<KokoroVoiceId>("af_heart");
+  let kokoroDtype = $state<KokoroDtype>("q8");
+  let kokoroDevice = $state<KokoroDevice>("wasm");
+  let openMenu = $state<"engine" | "kokoro" | "speed" | null>(null);
+
+  const isKokoroLocal = $derived(engines[engineIdx] === "kokoro / local");
+  const kokoroVoiceName = $derived(KOKORO_VOICES.find((v) => v.id === kokoroVoice)?.name ?? kokoroVoice);
+
+  function toggleMenu(menu: "engine" | "kokoro" | "speed", event: MouseEvent) {
+    event.stopPropagation();
+    openMenu = openMenu === menu ? null : menu;
+  }
+
+  function pickEngine(i: number) {
+    engineIdx = i;
+    openMenu = null;
+  }
+
+  function pickSpeed(i: number) {
+    speedIdx = i;
+    openMenu = null;
+  }
 </script>
+
+<svelte:window onclick={() => (openMenu = null)} />
 
 <svelte:head>
   <title>tells - reader</title>
@@ -70,12 +98,114 @@ SPDX-License-Identifier: AGPL-3.0-or-later
         <div class="times"><span>04:12</span><span>31:40</span></div>
       </div>
       <div class="pills">
-        <button title="Voice: click to change" onclick={() => (voiceIdx = (voiceIdx + 1) % voices.length)}>
-          {voices[voiceIdx]}
-        </button>
-        <button title="Speed: click to change" onclick={() => (speedIdx = (speedIdx + 1) % speeds.length)}>
-          {speeds[speedIdx]}
-        </button>
+        <div class="pill">
+          <button
+            class="pill-btn engine-btn"
+            title="Engine"
+            aria-haspopup="listbox"
+            aria-expanded={openMenu === "engine"}
+            onclick={(e) => toggleMenu("engine", e)}
+          >
+            {engines[engineIdx]}
+          </button>
+          {#if openMenu === "engine"}
+            <div class="menu" role="listbox" onclick={(e) => e.stopPropagation()}>
+              {#each engines as engine, i}
+                <button
+                  class="menu-item"
+                  class:active={i === engineIdx}
+                  role="option"
+                  aria-selected={i === engineIdx}
+                  onclick={() => pickEngine(i)}
+                >
+                  {engine}
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
+        <div class="pill kokoro-slot" class:empty={!isKokoroLocal}>
+          {#if isKokoroLocal}
+            <button
+              class="pill-btn kokoro-btn"
+              title="Kokoro settings"
+              aria-haspopup="dialog"
+              aria-expanded={openMenu === "kokoro"}
+              onclick={(e) => toggleMenu("kokoro", e)}
+            >
+              {kokoroVoiceName}
+            </button>
+            {#if openMenu === "kokoro"}
+              <div class="menu kokoro-menu" onclick={(e) => e.stopPropagation()}>
+                <div class="menu-section">
+                  <div class="menu-label">voice</div>
+                  <div class="menu-scroll">
+                    {#each KOKORO_VOICES as voice}
+                      <button
+                        class="menu-item"
+                        class:active={voice.id === kokoroVoice}
+                        onclick={() => (kokoroVoice = voice.id)}
+                      >
+                        {voice.name}
+                      </button>
+                    {/each}
+                  </div>
+                </div>
+                <div class="menu-section">
+                  <div class="menu-label">dtype</div>
+                  {#each dtypes as dtype}
+                    <button
+                      class="menu-item"
+                      class:active={dtype === kokoroDtype}
+                      onclick={() => (kokoroDtype = dtype)}
+                    >
+                      <span>{dtype}</span>
+                      <span class="menu-meta">{MODEL_SIZE_MB[dtype]} MB</span>
+                    </button>
+                  {/each}
+                </div>
+                <div class="menu-section">
+                  <div class="menu-label">device</div>
+                  {#each devices as device}
+                    <button
+                      class="menu-item"
+                      class:active={device === kokoroDevice}
+                      onclick={() => (kokoroDevice = device)}
+                    >
+                      {device}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+          {/if}
+        </div>
+        <div class="pill">
+          <button
+            class="pill-btn speed-btn"
+            title="Speed"
+            aria-haspopup="listbox"
+            aria-expanded={openMenu === "speed"}
+            onclick={(e) => toggleMenu("speed", e)}
+          >
+            {speeds[speedIdx]}
+          </button>
+          {#if openMenu === "speed"}
+            <div class="menu" role="listbox" onclick={(e) => e.stopPropagation()}>
+              {#each speeds as speed, i}
+                <button
+                  class="menu-item"
+                  class:active={i === speedIdx}
+                  role="option"
+                  aria-selected={i === speedIdx}
+                  onclick={() => pickSpeed(i)}
+                >
+                  {speed}
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
       </div>
     </div>
   </div>
@@ -214,8 +344,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   }
 
   .controls {
-    max-width: 920px;
-    margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
     display: flex;
     align-items: center;
     gap: 18px;
@@ -291,11 +421,28 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   .pills {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 10px;
     white-space: nowrap;
+    flex: 0 0 auto;
+    margin-left: auto;
   }
 
-  .pills button {
+  .pill {
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .kokoro-slot {
+    width: 6.5rem;
+  }
+
+  .kokoro-slot.empty {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .pill-btn {
     font: inherit;
     font-size: 12.5px;
     background: var(--card);
@@ -304,9 +451,105 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     border-radius: 99px;
     padding: 8px 14px;
     cursor: pointer;
+    display: block;
+    box-sizing: border-box;
+    text-align: center;
   }
 
-  .pills button:hover {
+  .engine-btn {
+    width: 11.5rem;
+  }
+
+  .kokoro-btn {
+    width: 100%;
+  }
+
+  .speed-btn {
+    width: 4.25rem;
+  }
+
+  .pill-btn:hover,
+  .pill-btn[aria-expanded="true"] {
     border-color: var(--ink);
+  }
+
+  .menu {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 8px);
+    min-width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    z-index: 20;
+  }
+
+  .kokoro-menu {
+    width: 16rem;
+    max-height: min(70vh, 28rem);
+    overflow-y: auto;
+    gap: 0;
+    padding: 4px;
+  }
+
+  .menu-section {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+  }
+
+  .menu-section + .menu-section {
+    border-top: 1px solid var(--ink);
+    margin-top: 4px;
+    padding-top: 10px;
+  }
+
+  .menu-label {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 4px 12px 6px;
+  }
+
+  .menu-scroll {
+    max-height: 11rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .menu-item {
+    font: inherit;
+    font-size: 12.5px;
+    background: transparent;
+    color: var(--ink);
+    border: none;
+    border-radius: 6px;
+    padding: 8px 12px;
+    cursor: pointer;
+    text-align: left;
+    white-space: nowrap;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .menu-meta {
+    color: var(--muted);
+  }
+
+  .menu-item:hover {
+    background: var(--card);
+  }
+
+  .menu-item.active {
+    background: color-mix(in srgb, var(--ink) 16%, var(--bg));
   }
 </style>

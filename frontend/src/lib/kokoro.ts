@@ -3,7 +3,7 @@
 
 export type KokoroState = "idle" | "loading-package" | "loading-model" | "ready" | "error";
 export type KokoroDtype = "fp32" | "fp16" | "q8" | "q4" | "q4f16";
-export type KokoroDevice = "wasm" | "webgpu";
+export type KokoroDevice = "wasm" | "webgpu" | "cpu";
 
 export interface KokoroProgress {
   loaded: number;
