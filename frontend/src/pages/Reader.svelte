@@ -16,7 +16,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   const engines = ["kokoro / local", "piper / local", "web speech", "kokoro / gpu", "chatterbox / gpu"];
   const speeds = ["1.0x", "1.2x", "1.5x", "1.8x", "2.0x"];
   const dtypes: KokoroDtype[] = ["q8", "fp16", "q4f16", "fp32", "q4"];
-  const devices: KokoroDevice[] = ["wasm", "webgpu", "cpu"];
+  const devices: KokoroDevice[] = ["wasm", "webgpu"];
 
   let playing = $state(true);
   let engineIdx = $state(0);
