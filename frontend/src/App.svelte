@@ -4,22 +4,25 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 
 <script lang="ts">
-  import type { Component } from "svelte";
   import Landing from "./pages/Landing.svelte";
   import Library from "./pages/Library.svelte";
   import Reader from "./pages/Reader.svelte";
   import Pricing from "./pages/Pricing.svelte";
   import Privacy from "./pages/Privacy.svelte";
 
-  const routes: Record<string, Component> = {
-    "#/library": Library,
-    "#/reader": Reader,
-    "#/pricing": Pricing,
-    "#/privacy": Privacy,
-  };
-
   let hash = $state(location.hash);
-  const Page = $derived(routes[hash] ?? Landing);
+
+  const route = $derived.by(() => {
+    if (hash === "#/library") return { name: "library" as const };
+    if (hash === "#/pricing") return { name: "pricing" as const };
+    if (hash === "#/privacy") return { name: "privacy" as const };
+    if (hash.startsWith("#/reader/")) {
+      const id = decodeURIComponent(hash.slice("#/reader/".length));
+      if (id) return { name: "reader" as const, id };
+    }
+    if (hash === "#/reader") return { name: "library" as const };
+    return { name: "landing" as const };
+  });
 
   function handleHashChange() {
     hash = location.hash;
@@ -29,4 +32,14 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 <svelte:window onhashchange={handleHashChange} />
 
-<Page />
+{#if route.name === "library"}
+  <Library />
+{:else if route.name === "reader"}
+  <Reader docId={route.id} />
+{:else if route.name === "pricing"}
+  <Pricing />
+{:else if route.name === "privacy"}
+  <Privacy />
+{:else}
+  <Landing />
+{/if}
