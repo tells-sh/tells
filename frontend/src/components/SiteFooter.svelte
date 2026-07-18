@@ -43,6 +43,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
   .right {
     display: flex;
+    align-items: flex-start;
     gap: 24px;
   }
 
