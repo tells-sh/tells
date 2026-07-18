@@ -42,5 +42,5 @@ export const MODEL_SIZE_MB: Record<KokoroDtype, number> = {
   fp16: 163,
   q8: 86,
   q4: 305,
-  q4f16: 154,
+  q4f16: 155,
 };
