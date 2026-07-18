@@ -1,0 +1,52 @@
+/*
+SPDX-FileCopyrightText: 2026 Jason Scheffel <contact@jasonscheffel.com>
+SPDX-License-Identifier: AGPL-3.0-or-later
+*/
+
+:root {
+  --bg: #ffffff;
+  --ink: #15181b;
+  --muted: #5d646b;
+  --line: #e4e7ea;
+  --hl: #c9f169;
+  --hl-ink: #15181b;
+  --card: #f8f9fa;
+}
+
+[data-theme="dark"] {
+  --bg: #121417;
+  --ink: #e7eaec;
+  --muted: #8e959c;
+  --line: #2a2e33;
+  --hl: #a6ce4a;
+  --hl-ink: #121417;
+  --card: #1a1d21;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  background: var(--hl);
+  color: var(--hl-ink);
+}
+
+.mono {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
