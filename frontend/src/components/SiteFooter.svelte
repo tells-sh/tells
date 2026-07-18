@@ -6,7 +6,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 <footer>
   <div class="inner mono">
     <div class="left">
-      <span>Copyright (C) 2026 Tells Contributors</span>
+      <span>Copyright (C) 2026 Tells <a href="https://github.com/tells-sh/tells/graphs/contributors?all=1">contributors</a></span>
       <span>AGPL-3.0-or-later</span>
     </div>
     <div class="right">
@@ -47,6 +47,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     gap: 24px;
   }
 
+  .left a,
   .right a {
     color: var(--muted);
     text-decoration: none;
